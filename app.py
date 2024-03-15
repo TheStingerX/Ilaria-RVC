@@ -1486,7 +1486,7 @@ with gr.Blocks(theme=gr.themes.Default(primary_hue="pink", secondary_hue="rose")
         with gr.TabItem("Inference"):
             gr.HTML("<h1>  Ilaria RVC 💖   </h1>")     
             gr.HTML("<h10>   You can find voice models on AI Hub: https://discord.gg/aihub   </h10>")   
-            gr.HTML("<h4>  Huggingface port by Ilaria of the Rejekt Easy GUI </h4>")
+            gr.HTML("<h4>  Huggingface / Colab port by Ilaria of the Rejekt Easy GUI </h4>")
 
             # Inference Preset Row
             # with gr.Row():
@@ -1848,7 +1848,7 @@ with gr.Blocks(theme=gr.themes.Default(primary_hue="pink", secondary_hue="rose")
                     but1.click(fn=lambda: easy_uploader.clear())
         with gr.TabItem("Download Voice Models"):
             with gr.Row():
-                url=gr.Textbox(label="Huggingface Link:")
+                url=gr.Textbox(label="Huggingface or Google Drive Link:")
             with gr.Row():
                 model = gr.Textbox(label="Name of the model (without spaces):")
                 download_button=gr.Button("Download")
