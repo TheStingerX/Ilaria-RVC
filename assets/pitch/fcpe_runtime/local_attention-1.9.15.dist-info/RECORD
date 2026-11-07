@@ -1,0 +1,15 @@
+local_attention-1.9.15.dist-info/INSTALLER,sha256=zuuue4knoyJ-UwPPXg8fezS7VCrXJQrAP7zeNuwvFQg,4
+local_attention-1.9.15.dist-info/LICENSE,sha256=As9u198X-U-vph5noInuUfqsAG2zX_oXPHDmdjwlPPY,1066
+local_attention-1.9.15.dist-info/METADATA,sha256=TlWLpgGYviUOdPlb1RNEcjI1bcSbvskzOJTVhT7RpOU,683
+local_attention-1.9.15.dist-info/RECORD,,
+local_attention-1.9.15.dist-info/REQUESTED,sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU,0
+local_attention-1.9.15.dist-info/WHEEL,sha256=cVxcB9AmuTcXqmwrtPhNK88dr7IR_b6qagTj0UvIEbY,91
+local_attention-1.9.15.dist-info/top_level.txt,sha256=tEZ1ubd8Io3SSiH8Z5PXKr_KLSISWvnzcsKr2TzhiGI,16
+local_attention/__init__.py,sha256=VKCSHOJ6IMT7nMzWPFnPBAhRURGi4dJuezbRIrr0NLE,147
+local_attention/__pycache__/__init__.cpython-39.pyc,,
+local_attention/__pycache__/local_attention.cpython-39.pyc,,
+local_attention/__pycache__/rotary.cpython-39.pyc,,
+local_attention/__pycache__/transformer.cpython-39.pyc,,
+local_attention/local_attention.py,sha256=Ihkw3VWZTj0GlDRM4f_5V_6BveaOYqpSC7Ec_8Sj2vA,7538
+local_attention/rotary.py,sha256=h5k7MUWOb0ZKSJKQjz_jQmd6A4QtHLW2NX8xqK3IPqI,1980
+local_attention/transformer.py,sha256=qE7h2nSvduEmystOB5HgOyq0OvPQBBuVbUEi7ftQxaM,10695

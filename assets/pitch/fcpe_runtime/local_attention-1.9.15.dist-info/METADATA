@@ -1,0 +1,19 @@
+Metadata-Version: 2.1
+Name: local-attention
+Version: 1.9.15
+Summary: Local attention, window with lookback, for language modeling
+Home-page: https://github.com/lucidrains/local-attention
+Author: Phil Wang
+Author-email: lucidrains@gmail.com
+License: MIT
+Keywords: transformers,attention,artificial intelligence
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.6
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: einops >=0.8.0
+Requires-Dist: torch
+
