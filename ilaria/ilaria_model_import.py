@@ -1,4 +1,4 @@
-"""Hugging Face download and selective RVC model import (Python 3.9+)."""
+"""Remote downloads and selective RVC model import (Python 3.9+)."""
 
 import sys as _ilaria_sys
 from pathlib import Path as _IlariaBootstrapPath
@@ -6,17 +6,22 @@ _ilaria_install_root = _IlariaBootstrapPath(__file__).resolve().parents[1]
 _ilaria_sys.path.insert(0, str(_ilaria_install_root / "ilaria"))
 _ilaria_sys.path.append(str(_ilaria_install_root))
 from pathlib import Path, PurePosixPath
+import base64
 import hashlib
+from hmac import compare_digest
+from html.parser import HTMLParser
+from http.cookiejar import CookieJar
 import json
 import os
 import re
+from secrets import randbits
 import shutil
 import stat
 import tempfile
 import time
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote, unquote, urlparse
-from urllib.request import Request, HTTPRedirectHandler, build_opener
+from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse
+from urllib.request import Request, HTTPCookieProcessor, HTTPRedirectHandler, build_opener
 from zipfile import ZipFile, BadZipFile
 
 CHUNK = 4 * 1024 * 1024
@@ -34,12 +39,30 @@ class HTTPSRedirects(HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
-def _open(url):
+DRIVE_HOSTS = {"drive.google.com", "drive.usercontent.google.com"}
+DRIVE_DOWNLOAD = "https://drive.usercontent.google.com/download"
+
+
+class DriveRedirects(HTTPSRedirects):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        parsed = urlparse(newurl)
+        host = parsed.hostname or ""
+        if (parsed.scheme != "https" or parsed.username or parsed.password or parsed.port not in (None, 443)
+                or (host not in DRIVE_HOSTS and not host.endswith(".googleusercontent.com"))):
+            raise ImportProblem("Google Drive redirected away from the download. Check that anyone with the link can download this file.")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _open(url, opener=None, data=None):
     from time import sleep
+    opener = opener or build_opener(HTTPSRedirects())
     for attempt in range(3):
         try:
-            return build_opener(HTTPSRedirects()).open(
-                Request(url, headers={"User-Agent": "ILARIA-RVC/1.0"}), timeout=60)
+            return opener.open(
+                Request(url, data=data, headers={
+                    "User-Agent": "ILARIA-RVC/1.0",
+                    **({"Content-Type": "application/json"} if data is not None else {}),
+                }), timeout=60)
         except HTTPError:
             raise
         except (URLError, TimeoutError, ConnectionError):
@@ -307,25 +330,219 @@ def _resolve_huggingface_zip(url):
     return "https://huggingface.co/%s/resolve/%s/%s?download=true" % (repo, quote(revision, safe=""), quote(filename, safe="/")), _clean_name(Path(filename).name)
 
 
+class DriveConfirmation(HTMLParser):
+    """Read the hidden fields of Google's large-file download form."""
+
+    def __init__(self):
+        super().__init__()
+        self.in_form = False
+        self.fields = {}
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == "form":
+            self.in_form = attrs.get("id") == "download-form"
+        elif self.in_form and tag == "input" and attrs.get("type") == "hidden":
+            name = attrs.get("name")
+            value = attrs.get("value") or ""
+            if name in {"id", "confirm", "uuid"} and re.fullmatch(r"[A-Za-z0-9_-]{1,256}", value):
+                self.fields[name] = value
+
+    def handle_endtag(self, tag):
+        if tag == "form":
+            self.in_form = False
+
+
+def _drive_parameters(parsed):
+    if parsed.scheme != "https" or parsed.username or parsed.password or parsed.port not in (None, 443):
+        raise ImportProblem("Use a public HTTPS link to a Google Drive file.")
+    query = parse_qs(parsed.query)
+    match = re.fullmatch(r"/file/d/([A-Za-z0-9_-]+)(?:/(?:view|preview|edit))?/?", parsed.path)
+    if match and parsed.hostname == "drive.google.com":
+        file_id = match[1]
+    elif parsed.path in ("/open", "/uc", "/download"):
+        file_id = query.get("id", [""])[0]
+    else:
+        file_id = ""
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,256}", file_id):
+        raise ImportProblem("Paste the share link to a single Google Drive file. Folder links are not supported.")
+    params = {"id": file_id, "export": "download"}
+    for key in ("resourcekey", "confirm", "uuid"):
+        value = query.get(key, [""])[0]
+        if re.fullmatch(r"[A-Za-z0-9_-]{1,256}", value):
+            params[key] = value
+    return params
+
+
+def _open_drive_file(parsed):
+    params = _drive_parameters(parsed)
+    opener = build_opener(DriveRedirects(), HTTPCookieProcessor(CookieJar()))
+    for attempt in range(2):
+        response = _open(DRIVE_DOWNLOAD + "?" + urlencode(params), opener)
+        if response.headers.get_content_type() not in ("text/html", "application/xhtml+xml"):
+            return response
+        with response:
+            page = response.read(1024 * 1024).decode("utf-8", errors="replace")
+        form = DriveConfirmation()
+        form.feed(page)
+        if attempt == 0 and form.fields.get("id") == params["id"] and "confirm" in form.fields:
+            params.update(form.fields)
+            continue
+        if any(message in page.casefold() for message in ("download quota", "too many users")):
+            raise ImportProblem("Google Drive's download limit for this file was reached. Try again later.")
+        raise ImportProblem("Google Drive did not return a downloadable file. Check sharing and download permissions.")
+
+
+MEGA_HOSTS = {"mega.nz", "www.mega.nz", "mega.co.nz", "www.mega.co.nz"}
+MEGA_API = "https://g.api.mega.co.nz/cs"
+
+
+def _check_mega_download_url(url):
+    parsed = urlparse(url)
+    host = parsed.hostname or ""
+    if (parsed.scheme != "https" or parsed.username or parsed.password or parsed.port not in (None, 443)
+            or not host.endswith((".mega.nz", ".mega.co.nz"))):
+        raise ImportProblem("MEGA did not provide a supported HTTPS storage address.")
+
+
+class MegaRedirects(HTTPSRedirects):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        _check_mega_download_url(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _mega_decode(value):
+    return base64.b64decode(value + "=" * (-len(value) % 4), altchars=b"-_", validate=True)
+
+
+class MegaFile:
+    """Resolve a public file and authenticate its decrypted bytes before import."""
+
+    def __init__(self, parsed):
+        if parsed.scheme != "https" or parsed.username or parsed.password or parsed.port not in (None, 443):
+            raise ImportProblem("Use a public HTTPS link to a MEGA file.")
+        modern = re.fullmatch(r"/file/([A-Za-z0-9_-]{8})/?", parsed.path)
+        legacy = re.fullmatch(r"!([A-Za-z0-9_-]{8})!([A-Za-z0-9_-]{43})", parsed.fragment)
+        if modern and re.fullmatch(r"[A-Za-z0-9_-]{43}", parsed.fragment):
+            handle, encoded_key = modern[1], parsed.fragment
+        elif parsed.path in ("", "/") and legacy:
+            handle, encoded_key = legacy.groups()
+        else:
+            raise ImportProblem("Paste a link to a single MEGA file with its decryption key. Folder and password-protected links are not supported.")
+        try:
+            from Crypto.Cipher import AES
+            from Crypto.Util.strxor import strxor
+        except ImportError as error:
+            raise ImportProblem("MEGA downloads require PyCryptodome from the Ilaria RVC runtime.") from error
+        self.aes, self.xor = AES, strxor
+        key = _mega_decode(encoded_key)
+        # The public key packs the AES key, the CTR nonce and the expected file MAC.
+        self.key = strxor(key[:16], key[16:])
+        self.nonce, self.expected_mac = key[16:24], key[24:]
+        self.opener = build_opener(MegaRedirects())
+        command = json.dumps([{"a": "g", "g": 1, "p": handle, "ssl": 2}]).encode()
+        with _open(f"{MEGA_API}?id={randbits(32)}", self.opener, data=command) as response:
+            try:
+                results = json.loads(response.read(64 * 1024))
+            except (UnicodeError, ValueError) as error:
+                raise ImportProblem("MEGA returned an invalid download response.") from error
+        result = results[0] if isinstance(results, list) and results else results
+        code = result.get("e") if isinstance(result, dict) else result
+        if code == -17:
+            raise ImportProblem("MEGA's transfer quota has been reached. Try again later.")
+        if not isinstance(result, dict) or code or not isinstance(result.get("g"), str):
+            raise ImportProblem("MEGA could not open this file. Check that the public link is complete and active.")
+        self.url = result["g"]
+        _check_mega_download_url(self.url)
+        self.size = result.get("s")
+        if type(self.size) is not int or self.size <= 0:
+            raise ImportProblem("MEGA returned an invalid or empty file size.")
+        if self.size > MAX_BYTES:
+            raise ImportProblem("The download exceeds the 16 GiB limit.")
+        try:
+            encrypted = _mega_decode(result["at"])
+            attributes = AES.new(self.key, AES.MODE_CBC, bytes(16)).decrypt(encrypted).rstrip(b"\0")
+            if not attributes.startswith(b"MEGA{"):
+                raise ValueError("Invalid attributes")
+            filename = json.loads(attributes[4:])["n"]
+            if not isinstance(filename, str):
+                raise ValueError("Invalid filename")
+        except (KeyError, TypeError, UnicodeError, ValueError) as error:
+            raise ImportProblem("Could not decrypt the MEGA filename. Check the decryption key in the link.") from error
+        self.name = _clean_name(filename)
+
+    def chunks(self, response):
+        cipher = self.aes.new(self.key, self.aes.MODE_CTR, nonce=self.nonce)
+        file_mac = self.aes.new(self.key, self.aes.MODE_CBC, bytes(16))
+        remaining, chunk_size = self.size, 128 * 1024
+        digest = bytes(16)
+        while remaining:
+            count = min(remaining, chunk_size)
+            encrypted = response.read(count)
+            if len(encrypted) != count:
+                raise ImportProblem("The MEGA download is incomplete. Try again.")
+            chunk = cipher.decrypt(encrypted)
+            # MEGA uses increasing chunk sizes up to 1 MiB and zero-pads the final AES block.
+            mac = self.aes.new(self.key, self.aes.MODE_CBC, self.nonce * 2)
+            digest = file_mac.encrypt(mac.encrypt(chunk + bytes(-count % 16))[-16:])
+            yield chunk
+            remaining -= count
+            chunk_size = min(chunk_size + 128 * 1024, 1024 * 1024)
+        condensed = self.xor(digest[:4], digest[4:8]) + self.xor(digest[8:12], digest[12:])
+        if response.read(1) or not compare_digest(condensed, self.expected_mac):
+            raise ImportProblem("The MEGA file failed integrity verification. Check the link and retry.")
+
+
 def download_huggingface_models(url, root):
-    """Download uses 0-70% of workflow, local import the remaining 30%."""
+    """Download a public model from a supported provider and install it."""
     progress = 0.0
+    drive = False
+    mega = None
+    provider = "Hugging Face"
     try:
-        yield _status(progress, "Finding the model ZIP on Hugging Face...")
-        resolved, name = _resolve_huggingface_zip(url)
-        progress = 5.0
-        yield _status(progress, "ZIP found: " + name + "; connecting...")
-        with tempfile.TemporaryDirectory(prefix="ilaria-download-") as temporary:
+        url = str(url or "").strip()
+        parsed = urlparse(url)
+        drive = parsed.hostname in DRIVE_HOSTS
+        if drive:
+            provider = "Google Drive"
+            yield _status(progress, "Connecting to Google Drive...")
+            response = _open_drive_file(parsed)
+        elif parsed.hostname in MEGA_HOSTS:
+            provider = "MEGA"
+            yield _status(progress, "Connecting to MEGA...")
+            mega = MegaFile(parsed)
+            name = mega.name
+            if not (name.lower().endswith(".zip") or _accepted(name)):
+                raise ImportProblem("MEGA must link to a model ZIP, inference .pth, or .index file.")
+            progress = 5.0
+            yield _status(progress, "File found on MEGA: " + name)
+            response = _open(mega.url, mega.opener)
+        else:
+            yield _status(progress, "Finding the model ZIP on Hugging Face...")
+            if parsed.hostname != "huggingface.co":
+                raise ImportProblem("Use a public Hugging Face, Google Drive, or MEGA link.")
+            resolved, name = _resolve_huggingface_zip(url)
+            progress = 5.0
+            yield _status(progress, "ZIP found: " + name + "; connecting...")
+            response = _open(resolved)
+        with response, tempfile.TemporaryDirectory(prefix="ilaria-download-") as temporary:
+            if drive:
+                filename = response.headers.get_filename()
+                if not filename:
+                    raise ImportProblem("Google Drive did not provide a filename. Check that the link allows downloads.")
+                name = _clean_name(filename)
+                if not (name.lower().endswith(".zip") or _accepted(name)):
+                    raise ImportProblem("Google Drive must link to a model ZIP, inference .pth, or .index file.")
+                progress = 5.0
+                yield _status(progress, "File found on Google Drive: " + name)
             target = Path(temporary) / name
-            with _open(resolved) as response, target.open("wb") as output:
-                total = int(response.headers.get("Content-Length") or 0)
+            with target.open("wb") as output:
+                total = mega.size if mega else int(response.headers.get("Content-Length") or 0)
                 received, previous = 0, -1
                 if total > MAX_BYTES:
                     raise ImportProblem("The download exceeds the 16 GiB limit.")
-                while True:
-                    chunk = response.read(CHUNK)
-                    if not chunk:
-                        break
+                chunks = mega.chunks(response) if mega else iter(lambda: response.read(CHUNK), b"")
+                for chunk in chunks:
                     received += len(chunk)
                     if received > MAX_BYTES:
                         raise ImportProblem("The download exceeds the 16 GiB limit.")
@@ -336,7 +553,7 @@ def download_huggingface_models(url, root):
                         previous = tick
                         detail = ("Downloading %s (%0.1f / %0.1f MiB)" % (name, received / (1024 * 1024), total / (1024 * 1024))) if total else ("Downloading %s: %.1f MiB; total size unknown (download phase)" % (name, received / (1024 * 1024)))
                         yield _status(progress, detail)
-                if total and received != total:
+                if not received or (total and received != total):
                     raise ImportProblem("The download is incomplete. Try again.")
             progress = 70.0
             yield _status(progress, "Download finished; inspecting and installing model files...")
@@ -344,4 +561,18 @@ def download_huggingface_models(url, root):
                 progress = 70 + 0.3 * local_progress
                 yield _status(progress, detail, done)
     except Exception as error:
-        yield _status(progress, "Download failed: " + _friendly(error))
+        if provider == "MEGA" and isinstance(error, HTTPError):
+            detail = ("MEGA's transfer quota has been reached. Try again later."
+                      if error.code in (429, 509) else f"MEGA returned HTTP {error.code}. Check the link or try again later.")
+        elif provider == "MEGA" and isinstance(error, (URLError, TimeoutError, ConnectionError)):
+            detail = "Could not connect to MEGA after 3 attempts. Check your connection and retry."
+        elif drive and isinstance(error, HTTPError):
+            if error.code in (401, 403, 404):
+                detail = "Google Drive denied access or could not find the file. Check the link and its sharing settings."
+            else:
+                detail = f"Google Drive returned HTTP {error.code}. Try again later."
+        elif drive and isinstance(error, URLError):
+            detail = "Could not connect to Google Drive after 3 attempts: " + str(error.reason)
+        else:
+            detail = _friendly(error)
+        yield _status(progress, "Download failed: " + detail)

@@ -1,6 +1,8 @@
 """Offline release notes, newest first."""
 
 RELEASE_HISTORY = (
+    ('1.9.2', '- Added Google Drive and MEGA to the model downloader in Other. Use a public link to a ZIP, inference .pth or .index file. The downloader handles Google Drive’s large-file confirmation and verifies MEGA downloads before importing them.'),
+    ('1.9.1', '- Fixed a training crash when reusing a Model Name with a different sample rate. Process Data and Train Pth now show the saved and selected rates before making changes. Use a new Model Name to train at a different rate.'),
     ('1.9.0',
      '- Added FCPE to training extraction, previews, Single and Batch Inference, and TTS. RMVPE remains the default.\n\n- Local model imports now stream binary uploads with transfer and installation progress, cancellation, cleanup, and identical-file checks.\n\n- Grouped the Other tab by purpose and made this release history expandable by version.'),
     ('1.8.1',
