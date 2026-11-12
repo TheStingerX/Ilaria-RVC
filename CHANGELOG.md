@@ -2,7 +2,7 @@
 
 ## 1.9.3
 
-- Added WAV, MP3, FLAC, OGG and M4A export and new audio processing controls for Single and Batch Inference.
+- Added Split Audio, Autotune, Proposed Pitch, Clean Audio, Formant Shifting and Post-Process effects to Single and Batch Inference. Export in WAV, MP3, FLAC, OGG or M4A.
 - Added Embedder Settings below Audio Processing in Single and Batch Inference. Select ContentVec, Spin, Spin-v2, Chinese, Japanese or Korean HuBERT Base, or install a custom HuBERT from a .bin and .json pair.
 - Missing Spin and language HuBERT downloads start immediately when the updated program launches, before the interface loads. Each download is verified before installation.
 
