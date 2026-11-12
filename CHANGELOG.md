@@ -1,11 +1,5 @@
 # Ilaria RVC Changelog
 
-## 1.9.3
-
-- Added Split Audio, Autotune, Proposed Pitch, Clean Audio, Formant Shifting and Post-Process effects to Single and Batch Inference. Export in WAV, MP3, FLAC, OGG or M4A.
-- Added Embedder Settings below Audio Processing in Single and Batch Inference. Select ContentVec, Spin, Spin-v2, Chinese, Japanese or Korean HuBERT Base, or install a custom HuBERT from a .bin and .json pair.
-- Missing Spin and language HuBERT downloads start immediately when the updated program launches, before the interface loads. Each download is verified before installation.
-
 ## 1.1 Beta
 
 - Introduced the purple interface, pink buttons, artwork, favicon, Ko-fi link, and collapsible Training and Inference Settings.
@@ -177,3 +171,9 @@ Model library
 ## 1.9.2
 
 - Added Google Drive and MEGA to the model downloader in Other. Use a public link to a ZIP, inference .pth or .index file. The downloader handles Google Drive’s large-file confirmation and verifies MEGA downloads before importing them.
+
+## 1.9.3
+
+- Added Split Audio, Autotune, Proposed Pitch, Clean Audio, Formant Shifting and Post-Process effects to Single and Batch Inference. Export in WAV, MP3, FLAC, OGG or M4A.
+- Added Embedder Settings below Audio Processing in Single and Batch Inference. Select ContentVec, Spin, Spin-v2, Chinese, Japanese or Korean HuBERT Base, or install a custom HuBERT from a .bin and .json pair.
+- Missing Spin and language HuBERT downloads start immediately when the updated program launches, before the interface loads. Each download is verified before installation.
