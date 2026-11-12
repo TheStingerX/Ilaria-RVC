@@ -39,7 +39,7 @@ entry points and dependency files are retained for reference in
 ## Credits and license
 
 - Based on [Retrieval-based Voice Conversion WebUI](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI). See the [MIT license](LICENSE) and the original third-party notices.
-- Includes adaptations from [Redpanda-vc](https://github.com/redpanda343/Redpanda-vc), with notices in the corresponding source files.
+- Includes adaptations from [Applio](https://github.com/IAHispano/Applio) and [Redpanda-vc](https://github.com/redpanda343/Redpanda-vc), with notices in the corresponding source files.
 - FCPE uses [TorchFCPE](https://pypi.org/project/torchfcpe/0.0.4/). License notices for vendored Python packages accompany their source.
 - The Audio Analyzer extends [Ilaria Audio Analyzer](https://github.com/TheStingerX/Ilaria-Audio-Analyzer).
 
