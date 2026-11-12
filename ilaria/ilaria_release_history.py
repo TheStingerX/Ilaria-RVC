@@ -1,6 +1,7 @@
 """Offline release notes, newest first."""
 
 RELEASE_HISTORY = (
+    ('1.9.3', '- Added WAV, MP3, FLAC, OGG and M4A export and new audio processing controls for Single and Batch Inference.\n- Added Embedder Settings below Audio Processing in Single and Batch Inference. Select ContentVec, Spin, Spin-v2, Chinese, Japanese or Korean HuBERT Base, or install a custom HuBERT from a .bin and .json pair.\n- The first launch after updating downloads missing Spin and language HuBERT weights into their own folders in the background. Downloads are verified before installation.'),
     ('1.9.2', '- Added Google Drive and MEGA to the model downloader in Other. Use a public link to a ZIP, inference .pth or .index file. The downloader handles Google Drive’s large-file confirmation and verifies MEGA downloads before importing them.'),
     ('1.9.1', '- Fixed a training crash when reusing a Model Name with a different sample rate. Process Data and Train Pth now show the saved and selected rates before making changes. Use a new Model Name to train at a different rate.'),
     ('1.9.0',

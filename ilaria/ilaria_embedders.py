@@ -85,5 +85,16 @@ def save_feature_embedder(folder, name):
     os.replace(str(temporary),str(path))
 
 
-def load_inference_embedder(config, embedder_model='contentvec'):
-    return load_embedder(os.getcwd(), embedder_model, config.device, config.is_half)[0]
+from ilaria_hubert_assets import (
+    INFERENCE_EMBEDDERS, custom_embedder_names, install_custom_embedder, inference_embedder_directory,
+)
+
+
+def load_inference_embedder(config, embedder_model="contentvec"):
+    root = os.getcwd()
+    if embedder_model in ("contentvec", "spin-v2"):
+        return load_embedder(root, embedder_model, config.device, config.is_half)[0]
+    from ilaria_hf_hubert import load_hf_hubert
+
+    directory = inference_embedder_directory(root, embedder_model)
+    return load_hf_hubert(directory, config.device, config.is_half)

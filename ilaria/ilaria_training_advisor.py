@@ -12,7 +12,6 @@ import re
 AUTO_GPU = "Auto (largest compatible GPU)"
 SOURCES = (
     ("RVC precision policy", "https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/blob/main/configs/config.py"),
-    ("Applio training guide", "https://docs.applio.org/getting-started/training/"),
     ("RVC out-of-memory FAQ", "https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/wiki/FAQ-%28Frequently-Asked-Questions%29"),
     ("PyTorch mixed precision", "https://docs.pytorch.org/tutorials/recipes/recipes/amp_recipe.html"),
 )
@@ -180,5 +179,5 @@ def recommendation_report(hardware, sample_rate="32k", precision="FP32", selecti
     lines.extend("- " + note for note in result["notes"])
     lines.extend(["", "**Sources used for the advice**", "",
                   " · ".join("[%s](%s)" % item for item in SOURCES), "",
-                  "Sources explain precision, VRAM, batch size and OOM handling. The numeric batch/CPU tiers above are this app's own cautious rules, not a table published by RVC or Applio. No hardware information is uploaded; scans run locally without a training benchmark."])
+                  "Sources explain precision, VRAM, batch size and OOM handling. The numeric batch/CPU tiers above are this app's own cautious rules, not a table published by RVC. No hardware information is uploaded; scans run locally without a training benchmark."])
     return "\n".join(lines)

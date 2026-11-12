@@ -1,22 +1,21 @@
 import os
+from pathlib import Path
 import traceback
 import logging
 
 logger = logging.getLogger(__name__)
 
 import numpy as np
-import soundfile as sf
 import torch
-from io import BytesIO
 
-from infer.lib.audio import load_audio, wav2
+from infer.lib.audio import load_audio
 from infer.lib.infer_pack.models import (
     SynthesizerTrnMs256NSFsid,
     SynthesizerTrnMs256NSFsid_nono,
     SynthesizerTrnMs768NSFsid,
     SynthesizerTrnMs768NSFsid_nono,
 )
-from infer.modules.vc.pipeline import Pipeline
+from ilaria_inference_pipeline import Pipeline
 from ilaria_pitch import install_pipeline
 install_pipeline(Pipeline)
 from infer.modules.vc.utils import get_index_path_from_model
@@ -47,6 +46,7 @@ class VC:
         self.if_f0 = None
         self.version = None
         self.hubert_model = None
+        self._loaded_embedder = None
 
         self.config = config
         self._voice_file = None
@@ -69,6 +69,7 @@ class VC:
             had_voice = self.net_g is not None or self.hubert_model is not None
             self._voice_file = None
             self.net_g = self.hubert_model = self.pipeline = self.cpt = None
+            self._loaded_embedder = None
             self.tgt_sr = self.n_spk = self.if_f0 = self.version = None
             if had_voice and torch.cuda.is_available():
                 torch.cuda.empty_cache()
@@ -98,29 +99,27 @@ class VC:
             self._voice_file = signature
         for control in (to_return_protect0, to_return_protect1):
             control["visible"] = self.if_f0 != 0
-        n_spk = self.cpt["config"][-3]
+        last_speaker = max(0, self.cpt["config"][-3] - 1)
+        speaker = {"visible": True, "maximum": last_speaker, "value": 0, "__type__": "update"}
         index = {"value": get_index_path_from_model(sid) if find_index else "", "__type__": "update"}
         logger.info("Select index: " + index["value"])
 
         return (
             (
-                {"visible": True, "maximum": n_spk, "__type__": "update"},
+                speaker,
                 to_return_protect0,
                 to_return_protect1,
                 index,
                 index,
             )
             if to_return_protect
-            else {"visible": True, "maximum": n_spk, "__type__": "update"}
+            else speaker
         )
 
     def _load_voice(self, person):
         logger.info(f"Loading: {person}")
 
-        previous_embedder = (self.cpt.get("embedder_model") or "contentvec") if getattr(self, "cpt", None) else "contentvec"
         self.cpt = torch.load(person, map_location="cpu")
-        if previous_embedder != (self.cpt.get("embedder_model") or "contentvec"):
-            self.hubert_model = None
         self.tgt_sr = self.cpt["config"][-1]
         self.cpt["config"][-3] = self.cpt["weight"]["emb_g.weight"].shape[0]  # n_spk
         self.if_f0 = self.cpt.get("f0", 1)
@@ -151,12 +150,17 @@ class VC:
 
         self.pipeline = Pipeline(self.tgt_sr, self.config)
 
-    def ensure_embedder_loaded(self):
-        if self.hubert_model is None:
+    def ensure_embedder_loaded(self, selected=None):
+        embedder = selected or self.cpt.get("embedder_model") or "contentvec"
+        if not isinstance(embedder, str):
+            raise ValueError("Choose an Embedder Model in Inference.")
+        if self.hubert_model is None or self._loaded_embedder != embedder:
             from ilaria_embedders import load_inference_embedder
 
-            embedder = self.cpt.get("embedder_model") or "contentvec"
+            self.hubert_model = self._loaded_embedder = None
             self.hubert_model = load_inference_embedder(self.config, embedder)
+            self._loaded_embedder = embedder
+        return embedder
 
     def vc_single(
         self,
@@ -172,19 +176,39 @@ class VC:
         resample_sr,
         rms_mix_rate,
         protect,
+        inference_options=None,
     ):
         if input_audio_path is None:
             return "You need to upload an audio", None
-        f0_up_key = int(f0_up_key)
+        if self.net_g is None or self.cpt is None:
+            return "Select a Voice Model before converting.", None
         try:
+            speaker = int(sid)
+            if float(sid) != speaker or not 0 <= speaker < self.cpt["config"][-3]:
+                return "Choose a Speaker ID supported by this model.", None
+        except (ValueError, TypeError, OverflowError):
+            return "Choose a valid Speaker ID.", None
+        options = inference_options or {}
+        try:
+            f0_up_key = int(f0_up_key)
             protect = normalize_protect(protect)
             audio = load_audio(input_audio_path, 16000)
+            if options.get("formant_ratio") is not None:
+                from ilaria_inference_effects import apply_formant_shift
+
+                audio = apply_formant_shift(audio, 16000, options["formant_ratio"])
             audio_max = np.abs(audio).max() / 0.95
             if audio_max > 1:
                 audio /= audio_max
             times = [0, 0, 0]
 
-            self.ensure_embedder_loaded()
+            try:
+                embedder = self.ensure_embedder_loaded(options.get("embedder_model"))
+            except (ValueError, OSError, RuntimeError) as error:
+                return f"Embedder could not be loaded. {error}", None
+            if self.version == "v1" and not getattr(self.hubert_model, "has_final_proj", True):
+                return (f"{embedder} needs an RVC v2 voice model. "
+                        "Choose a v2 model or switch Embedder Model to ContentVec."), None
 
             file_index = (
                 (
@@ -202,7 +226,7 @@ class VC:
             audio_opt = self.pipeline.pipeline(
                 self.hubert_model,
                 self.net_g,
-                sid,
+                speaker,
                 audio,
                 input_audio_path,
                 times,
@@ -218,11 +242,16 @@ class VC:
                 self.version,
                 protect,
                 f0_file,
+                options,
             )
             if self.tgt_sr != resample_sr >= 16000:
                 tgt_sr = resample_sr
             else:
                 tgt_sr = self.tgt_sr
+            if options.get("clean_audio") or options.get("post_process"):
+                from ilaria_inference_effects import apply_output_effects
+
+                audio_opt = apply_output_effects(audio_opt, tgt_sr, options)
             if float(index_rate) <= 0:
                 index_info = "Voice index: off (Index Ratio is 0)."
             elif file_index and os.path.isfile(file_index):
@@ -237,7 +266,16 @@ class VC:
                 "Generating the converted voice: %.2f seconds\n"
                 "Total model processing time: %.2f seconds"
             ) % (index_info, times[0], pitch_info, times[2], sum(times))
+            if not self.if_f0 and any(options.get(name) is not None for name in
+                                      ("autotune_strength", "proposed_pitch_hz")):
+                message += "\nAutotune and Proposed Pitch require an F0-guided model."
+            if options.get("embedder_model"):
+                message += f"\nEmbedder: {embedder}"
+                if embedder != (self.cpt.get("embedder_model") or "contentvec") and float(index_rate) > 0:
+                    message += "\nUse an index built with this embedder for matching features."
             return message, (tgt_sr, audio_opt)
+        except ValueError as error:
+            return f"Conversion failed. {error}", None
         except:
             info = traceback.format_exc()
             logger.warning(info)
@@ -260,6 +298,8 @@ class VC:
         protect,
         format1,
         return_audio=False,
+        inference_options=None,
+        return_export=False,
     ):
         latest_audio = None
         try:
@@ -294,31 +334,24 @@ class VC:
                     resample_sr,
                     rms_mix_rate,
                     protect,
+                    inference_options=inference_options,
                 )
-                if "Success" in info:
-                    latest_audio = opt
+                if "Success" in info and opt is not None:
+                    if not return_export:
+                        latest_audio = opt
                     try:
+                        from ilaria_inference_export import EXPORT_FORMATS, write_inference_export
+
+                        export_format = str(format1).lower()
+                        if export_format not in EXPORT_FORMATS:
+                            raise ValueError("Choose WAV, MP3, FLAC, OGG or M4A.")
+                        destination = Path(opt_root) / (Path(path).name + "." + export_format)
                         tgt_sr, audio_opt = opt
-                        if format1 in ["wav", "flac"]:
-                            sf.write(
-                                "%s/%s.%s"
-                                % (opt_root, os.path.basename(path), format1),
-                                audio_opt,
-                                tgt_sr,
-                            )
-                        else:
-                            path = "%s/%s.%s" % (
-                                opt_root,
-                                os.path.basename(path),
-                                format1,
-                            )
-                            with BytesIO() as wavf:
-                                sf.write(wavf, audio_opt, tgt_sr, format="wav")
-                                wavf.seek(0, 0)
-                                with open(path, "wb") as outf:
-                                    wav2(wavf, outf, format1)
-                    except:
-                        info += traceback.format_exc()
+                        write_inference_export(destination, audio_opt, tgt_sr)
+                        if return_export:
+                            latest_audio = destination
+                    except (ValueError, OSError, RuntimeError) as error:
+                        info += "\nExport failed. " + str(error)
                 infos.append("File: %s\n%s" % (os.path.basename(path), info))
                 yield ("\n\n".join(infos), latest_audio) if return_audio else "\n\n".join(infos)
             yield ("\n\n".join(infos), latest_audio) if return_audio else "\n\n".join(infos)

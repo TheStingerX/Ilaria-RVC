@@ -34,7 +34,7 @@ now_dir = os.getcwd()
 sys.path.append(now_dir)
 load_dotenv()
 from infer.modules.vc.modules import VC
-from infer.modules.vc.pipeline import preload_rmvpe, release_rmvpe
+from ilaria_inference_pipeline import preload_rmvpe, release_rmvpe
 from i18n.i18n import I18nAuto
 from configs.config import Config
 import torch
@@ -1093,12 +1093,19 @@ def stream_training_progress(process, log_path, total_epochs, offset=0, total_st
 
 def batch_inference_audio(sid, folder, output_folder, audio_path, pitch, method,
                           index_path, detected_index, index_ratio, filter_radius,
-                          resample, volume_mix, protect, output_format):
+                          resample, volume_mix, protect, output_format, *audio_controls):
     from types import SimpleNamespace
+
+    try:
+        options = inference_options_from_controls(*audio_controls)
+    except ValueError as error:
+        yield str(error), gr.update(value=None)
+        return
     paths = [SimpleNamespace(name=audio_path)] if audio_path else []
     results = vc.vc_multi(sid, folder, output_folder, paths, pitch, method,
                           index_path, detected_index, index_ratio, filter_radius,
-                          resample, volume_mix, protect, output_format, return_audio=True)
+                          resample, volume_mix, protect, output_format, return_audio=True,
+                          inference_options=options, return_export=True)
     last_audio = None
     while True:
         with voice_lock:
@@ -1107,7 +1114,11 @@ def batch_inference_audio(sid, folder, output_folder, audio_path, pitch, method,
             except StopIteration:
                 return
             if audio is not last_audio:
-                output = named_inference_audio(audio, loaded_voice)
+                try:
+                    output = named_inference_audio(audio, loaded_voice)
+                except (ValueError, OSError, RuntimeError) as error:
+                    message += "\nPreview failed. " + str(error)
+                    output = gr.update(value=None)
                 last_audio = audio
             else:
                 output = gr.update()
@@ -2387,7 +2398,7 @@ TUTORIAL_SECTIONS = (
     ('16. Quick reference and a default-settings checklist',
      '| Term | Plain-English meaning |\n| --- | --- |\n| Dataset | The recordings used to teach a voice model. |\n| Inference | Using a trained model to convert audio. |\n| F0 / pitch contour | The measured pitch over time. |\n| Feature | A numerical description of audio used by the model. |\n| Epoch | One pass through the prepared training dataset. |\n| Batch / step | A group of training examples and one batch update. Total Steps accumulates these updates. |\n| Checkpoint | Saved training state used to continue a run. |\n| Index | The optional database of dataset features used for retrieval. |\n| VRAM | Memory on the GPU; different from normal system RAM. |\n| ETA | Estimated remaining time; a prediction that can change. |\n\n**Training defaults:** V2; Training Precision **FP32**; Sample Rate **32k**; Pitch Guidance **True**; CPU Threads **8**; Speaker ID **0**; Pitch Extraction **rmvpe**; Save frequency **100**; Total Epochs **300**; Batch Size **8**; latest checkpoint **Yes**; Cache data to GPU **No**; Create model at save frequency **No**.\n\n**Inference defaults in both tabs:** Pitch **0**; Pitch Extraction **rmvpe**; Index Ratio **0**; Resampling **0**; volume-envelope mix **0.25**; protection **0.33**; Harvest median filter **3**; Speaker ID **0** where applicable. Batch output folder **InferOutput**, export format **flac**.\n\nUse these values to get a baseline, then make one deliberate change at a time. The best check is a controlled listening comparison using the same short input recording.'),
     ('17. RVC concepts and the wider ecosystem',
-     "**RVC \u2014 Retrieval-based Voice Conversion.** A system that converts the voice character of existing audio. Its main pieces are a content encoder, a pitch estimator, an acoustic generator, and optional feature retrieval. It uses recorded audio as input; it is not a text-to-speech interface.\n\n**F0 / fundamental frequency.** The base repetition frequency of vocal-fold vibration in voiced speech or singing, closely related to perceived pitch. Pitch estimation or tracking measures it over time. Consonants and breaths can be unvoiced and do not always have a meaningful F0.\n\n**RMVPE \u2014 Robust Model for Vocal Pitch Estimation.** A neural pitch estimator. Its F0 output conditions pitch-guided RVC training and conversion, telling the generator about high and low notes. It does not teach the words or select the speaker on its own.\n\n**Embedder / content encoder.** A pretrained model that turns audio into numerical representations. A content encoder aims to preserve linguistic information while reducing speaker-specific information. It supplies learned speech features; it does not literally teach every language or guarantee correct pronunciation.\n\n**ContentVec / HuBERT.** Standard RVC uses a HuBERT-style content encoder associated with ContentVec, commonly distributed as `hubert_base.pt`. This installation loads `assets/hubert/hubert_base.pt`. The filename alone does not identify every detail of how those weights were trained.\n\n**Codebook.** A set of discrete representative codes used in some speech-representation training methods. It is different from the continuous feature vectors used by RVC's retrieval index. Codebook size is not a quality score: architecture, training data, and compatibility also matter. The glossary does not assume a particular codebook size for an arbitrary downloaded checkpoint.\n\n**SpinV2.** An alternative speech representation/embedding approach found in parts of the RVC ecosystem, rather than a selectable embedder in this UI. Using another embedder requires compatible extraction and model/pretraining support; renaming its file to `hubert_base.pt` is not a supported upgrade. A larger codebook alone does not establish that it will sound better here.\n\n**AI architecture.** The design of a model: its components, connections, and how information flows through them. A different architecture can require different weights and training code.\n\n**Mainline and fork.** Mainline refers here to the [original RVC project](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI). A fork is a separately modifiable copy of a repository, often used for experiments, fixes, and new features. Features in a fork are not automatically present in this installation.\n\n**Applio.** A separate RVC-based voice-conversion project with its own interface and development choices. Its menus, supported embedders, dependencies, and model options should not be assumed to match ILARIA RVC.\n\n**Vocoder.** A neural component that generates an audio waveform from conditioning features. Standard RVC uses an NSF-HiFi-GAN-style waveform generator conditioned on learned features and F0, rather than requiring a plain mel spectrogram as its only input. RefineGAN, HiFi-GAN, and RingFormer are names you may encounter for other waveform-generation designs in the wider ecosystem; they are not interchangeable settings exposed in this app.\n\n**Pretrain / pretrained model.** Weights already learned from a larger training task, reused as a starting point. **Fine-tuning** continues training those weights on a more specific dataset, such as Ilaria's voice recordings. Your dataset, pitch setup, sample rate, architecture, and pretrained files must be compatible.\n\n**VCTK.** A multi-speaker English speech dataset often discussed in speech-model training. It is not your personal training dataset. Do not infer the exact training data of every RVC pretrain from its filename, or assume all pretrained models use the same corpus. Speech recordings and expressive singing can have different coverage and demands.\n\n**Epoch and batch size.** An epoch is a pass through the prepared training data; batch size is how many prepared examples are handled together. An epoch is not a second, and batch size is not dataset duration. See section 6 for cumulative steps and resume behavior.\n\n**Overtraining / overfitting.** Training can become too specialized to its examples and generalize poorly to new performances. More training can stop improving or worsen results; robotic artifacts alone do not prove overfitting, because bad input, pitch errors, and other settings can also cause them. Compare held-out test audio and intermediate exports when available.\n\n**Generator and discriminator.** The generator produces audio; the discriminator learns to distinguish generated audio from real training audio. Their competing objectives provide feedback during training. The discriminator helps train the generator but is not the voice model selected for normal inference.\n\n**VITS.** Originally an end-to-end text-to-speech architecture. RVC adapts ideas from VITS for audio-conditioned voice conversion; this does not make this UI a text-to-speech tool. See the [original VITS repository](https://github.com/jaywalnut310/vits).\n\n**RVC-Boss.** A prominent developer/maintainer associated with the RVC project. RVC includes contributions from a team and upstream research projects; credit and checkpoint provenance should be checked in the relevant repositories.\n\n**Further reading:** [Understanding RVC \u2014 Retrieval-based Voice Conversion](https://gudgud96.github.io/2024/09/26/annotated-rvc/) explains content extraction, RMVPE, the VITS-based acoustic model, and retrieval in more depth. It is an external technical explanation; this glossary's control descriptions refer to the local ILARIA RVC build."),
+     "**RVC \u2014 Retrieval-based Voice Conversion.** A system that converts the voice character of existing audio. Its main pieces are a content encoder, a pitch estimator, an acoustic generator, and optional feature retrieval. It uses recorded audio as input; it is not a text-to-speech interface.\n\n**F0 / fundamental frequency.** The base repetition frequency of vocal-fold vibration in voiced speech or singing, closely related to perceived pitch. Pitch estimation or tracking measures it over time. Consonants and breaths can be unvoiced and do not always have a meaningful F0.\n\n**RMVPE \u2014 Robust Model for Vocal Pitch Estimation.** A neural pitch estimator. Its F0 output conditions pitch-guided RVC training and conversion, telling the generator about high and low notes. It does not teach the words or select the speaker on its own.\n\n**Embedder / content encoder.** A pretrained model that turns audio into numerical representations. A content encoder aims to preserve linguistic information while reducing speaker-specific information. It supplies learned speech features; it does not literally teach every language or guarantee correct pronunciation.\n\n**ContentVec / HuBERT.** Standard RVC uses a HuBERT-style content encoder associated with ContentVec, commonly distributed as `hubert_base.pt`. This installation loads `assets/hubert/hubert_base.pt`. The filename alone does not identify every detail of how those weights were trained.\n\n**Codebook.** A set of discrete representative codes used in some speech-representation training methods. It is different from the continuous feature vectors used by RVC's retrieval index. Codebook size is not a quality score: architecture, training data, and compatibility also matter. The glossary does not assume a particular codebook size for an arbitrary downloaded checkpoint.\n\n**SpinV2.** An alternative speech representation/embedding approach found in parts of the RVC ecosystem, rather than a selectable embedder in this UI. Using another embedder requires compatible extraction and model/pretraining support; renaming its file to `hubert_base.pt` is not a supported upgrade. A larger codebook alone does not establish that it will sound better here.\n\n**AI architecture.** The design of a model: its components, connections, and how information flows through them. A different architecture can require different weights and training code.\n\n**Mainline and fork.** Mainline refers here to the [original RVC project](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI). A fork is a separately modifiable copy of a repository, often used for experiments, fixes, and new features. Features in a fork are not automatically present in this installation.\n\n**Vocoder.** A neural component that generates an audio waveform from conditioning features. Standard RVC uses an NSF-HiFi-GAN-style waveform generator conditioned on learned features and F0, rather than requiring a plain mel spectrogram as its only input. RefineGAN, HiFi-GAN, and RingFormer are names you may encounter for other waveform-generation designs in the wider ecosystem; they are not interchangeable settings exposed in this app.\n\n**Pretrain / pretrained model.** Weights already learned from a larger training task, reused as a starting point. **Fine-tuning** continues training those weights on a more specific dataset, such as Ilaria's voice recordings. Your dataset, pitch setup, sample rate, architecture, and pretrained files must be compatible.\n\n**VCTK.** A multi-speaker English speech dataset often discussed in speech-model training. It is not your personal training dataset. Do not infer the exact training data of every RVC pretrain from its filename, or assume all pretrained models use the same corpus. Speech recordings and expressive singing can have different coverage and demands.\n\n**Epoch and batch size.** An epoch is a pass through the prepared training data; batch size is how many prepared examples are handled together. An epoch is not a second, and batch size is not dataset duration. See section 6 for cumulative steps and resume behavior.\n\n**Overtraining / overfitting.** Training can become too specialized to its examples and generalize poorly to new performances. More training can stop improving or worsen results; robotic artifacts alone do not prove overfitting, because bad input, pitch errors, and other settings can also cause them. Compare held-out test audio and intermediate exports when available.\n\n**Generator and discriminator.** The generator produces audio; the discriminator learns to distinguish generated audio from real training audio. Their competing objectives provide feedback during training. The discriminator helps train the generator but is not the voice model selected for normal inference.\n\n**VITS.** Originally an end-to-end text-to-speech architecture. RVC adapts ideas from VITS for audio-conditioned voice conversion; this does not make this UI a text-to-speech tool. See the [original VITS repository](https://github.com/jaywalnut310/vits).\n\n**RVC-Boss.** A prominent developer/maintainer associated with the RVC project. RVC includes contributions from a team and upstream research projects; credit and checkpoint provenance should be checked in the relevant repositories.\n\n**Further reading:** [Understanding RVC \u2014 Retrieval-based Voice Conversion](https://gudgud96.github.io/2024/09/26/annotated-rvc/) explains content extraction, RMVPE, the VITS-based acoustic model, and retrieval in more depth. It is an external technical explanation; this glossary's control descriptions refer to the local ILARIA RVC build."),
     ('18. Downloading, importing, and merging models',
      "Open **Other**, between Inference and Glossary. All three sections start closed.\n\n**Download models from Hugging Face, Google Drive or MEGA:** paste a public Hugging Face repository or direct ZIP URL, or a Google Drive or MEGA share link to one `.zip`, `.pth`, or `.index` file. For Drive, set General access to Anyone with the link and allow downloads. For MEGA, copy the full file link including the key after #. Click **Download and install model**. If a Hugging Face repository contains several ZIPs, choose a direct link from the log. For a model and its index stored as separate Drive or MEGA files, paste each link in turn or put both in one ZIP.\n\n**Import local models:** drop one or more `.zip`, `.pth`, and `.index` files, then click **Import model files**. ZIPs can contain nested folders; the importer takes the supported model/index files rather than installing the entire archive. Inference models go into `models`, and indexes go into matching folders under `models`. Training G_/D_ checkpoint pairs are not inference model exports.\n\nAfter success, go to **Inference**, click **Refresh**, and choose the intended model. Refresh selects the first alphabetical model, so check the selection. A matching index is optional, and Index Ratio defaults to zero. Existing different files are kept and a naming conflict is reported; identical files are left unchanged. Importing copies files and does not train or convert audio. Only select model files you intend to use.\n\n**Merge models** is the first section. Select two installed inference models, click Check model compatibility, and read the rate, version, pitch mode, and shape checks. Both models must match: this tool does not convert a 32 kHz model into a 40 or 48 kHz model. Auto detects their shared rate; a manual rate checks that it matches.\n\nThe Model A contribution slider uses percentages: 50 means 50% A + 50% B, 100 keeps A, and 0 keeps B. This is interpolation of neural-network weights, not a guarantee of an equally recognizable voice mixture. Choose FP16 for a smaller exported model or FP32 to retain full-precision blended weights. Calculations run on CPU in FP32. Choose a new model name and optional notes, then click Merge and save model. Models with different tensor shapes (including incompatible speaker embeddings) are rejected rather than silently truncated.\n\nThe result goes into models without replacing the originals. Refresh Inference and select the output. No index is merged or created; first test with Index Ratio 0. Import, download, compatibility, and merge logs show phase information and progress. Download progress is based on bytes when the server provides a file size; workflow stage percentages are not time estimates. Completion reaches 100% only after the relevant work finishes successfully.\n\n**New model name \u2014 required; starts empty.** The faint `merged_voice` text is an example placeholder, not a name that has already been filled in. Click the box and type a new name such as `voice_a_b_mix50`; there is no prefilled text to erase. This field names the **new merged output**, not Model A or Model B, and does not rename either original.\n\n**A complete merging example:**\n\n1. Open Other, then Merge models. Choose an installed voice in Model A and another compatible voice in Model B.\n2. Click Check model compatibility and wait for its result. Choose Auto (from models) for sample rate unless you are checking a specific matching rate.\n3. Set Model A contribution to `50` for a 50% A / 50% B weight blend. Keep FP16 for a smaller output, or choose FP32 if you want full-precision blended weights.\n4. In New model name, type `voice_a_b_mix50`. Use a simple filename without a folder path; `.pth` is added automatically. If you do include one `.pth` suffix, the merger handles it without adding a second suffix.\n5. Optionally type a description in Model notes (optional), for example `50% Voice A and 50% Voice B, first test`. You can leave notes empty. Notes describe the model; they do not set its filename or change the blend ratio.\n6. Click Merge and save model. Wait for `Merge done!` and 100%. With this example name, the result is `models/voice_a_b_mix50/voice_a_b_mix50.pth`.\n7. Open Inference, click Refresh, and select `voice_a_b_mix50.pth` yourself. Refresh selects the first alphabetical model, which might be a different voice. Test with a short recording and Index Ratio 0 first.\n\n**Blank output name:** the merger reports an invalid output name and does not save a nameless model. Seeing the placeholder does not satisfy this requirement. Type your own name before merging.\n\n**Existing output name:** the merger refuses to overwrite an existing model. Choose another name such as `voice_a_b_mix50_test2`; do not use the filename of Model A or Model B as the output name. The Training Model Name and the merging New model name are separate fields: entering one does not automatically fill the other.\n\n**Placeholder versus default versus optional:** a placeholder is only a hint in an empty box; a default is an actual selected value such as the 50% blend or FP16 precision; optional means the field may stay empty. New model name and Training's Model Name are required even though they show example text. Model notes really is optional.\n\n\n**Model information (last menu in Other).** Open the menu and select a Voice Model to read it automatically, or click Read model information to read it again. Refresh model list discovers newly imported or merged files. Inspection reads the checkpoint on CPU; it does not start inference or training.\n\nThe report shows file size, last modification time from your PC clock, SHA-256 fingerprint, saved RVC version, sample rate, pitch guidance, speaker embedding slots, stored tensor precision and size, any saved epoch/step information, notes and matching index filenames. Expand Saved metadata and architecture for the raw metadata and configuration fields. Expand Stored tensors for every displayed weight's name, shape, type and size.\n\nMissing facts are labelled as not stored. FP16/FP32 in this report describes the saved weights, not proof of the precision used during training. The last file modification time is not a training-completion timestamp; speaker slots do not prove that every slot was trained. Matching indexes are identified by names, not by a compatibility test. No training duration, dataset quality or GPU is guessed from the weights.\n\n\n**Program updates (Other > Update Ilaria RVC).** The UI checks for releases when the page opens. Installed version shows the version on your PC. Check for updates repeats the check and shows the publisher's release notes. Download and restart appears when a newer compatible release is published.\n\nFinish training, conversion, importing, merging and other active operations before updating. The updater refuses to interrupt them, including training processes that continue after a cancelled UI request. Start the program with ILARIA_RVC.bat so it can install and restart automatically.\n\nClick Download and restart to download the release with progress, verify its contents, create backups and restart the UI. Keep the CMD window open. This page reloads after the new version starts; if your browser does not reload, refresh it manually. The CMD shows installation progress while the web server is closed.\n\nOnly managed program files are replaced. Your dataset, voice models, indexes, experiment logs and runtime are preserved. Backups are stored inside .ilaria-updates/backups in the installation folder. A failed installation restores the previous files; after an interrupted installation, the launcher attempts recovery before opening the UI.\n\nIf a second launch is blocked, use the existing UI address or return to the original CMD window. Closing a browser tab does not stop the backend. Before restarting, finish training or use Stop and save and wait for confirmation. The launcher message identifies the existing process and address when available; do not delete launcher.lock to stop the program.\n\nAn internet error or an update feed that has not been published does not prevent you from using the program. Check again later. The first installation of the updater must be copied into an existing compatible Ilaria RVC installation; subsequent published versions can use the built-in updater.\n"),
 )
@@ -2468,31 +2479,166 @@ class NamedInferenceAudio(gr.Audio):
         return super().postprocess(value)
 
 
-def named_inference_audio(audio, model):
+from ilaria_inference_export import EXPORT_FORMATS
+
+
+def named_inference_audio(audio, model, output_format="wav"):
     if audio is None:
         return gr.update(value=None)
-    import soundfile
     import tempfile
+    from ilaria_inference_export import write_inference_export
 
     name = pathlib.Path(model or "Voice").stem + " output"
+    if isinstance(audio, pathlib.Path):
+        output_format = audio.suffix.lstrip(".").lower()
+    output_format = str(output_format).lower()
+    if output_format not in EXPORT_FORMATS:
+        raise ValueError("Choose WAV, MP3, FLAC, OGG or M4A.")
     folder = pathlib.Path(tempfile.mkdtemp(prefix="inference-", dir=tmp))
-    path = folder / (name + ".wav")
-    rate, samples = audio
-    soundfile.write(str(path), samples, rate, subtype="PCM_16")
+    path = folder / (name + "." + output_format)
+    try:
+        if isinstance(audio, pathlib.Path):
+            shutil.copyfile(audio, path)
+        else:
+            rate, samples = audio
+            write_inference_export(path, samples, rate)
+    except (ValueError, OSError, RuntimeError):
+        shutil.rmtree(folder, ignore_errors=True)
+        raise
     return gr.update(value=str(path), label=name)
 
 
 def convert_named_inference(*args):
+    conversion_args, export_controls = args[:12], args[12:]
+    output_format, *controls = export_controls or ["wav"]
+    try:
+        options = inference_options_from_controls(*controls)
+    except ValueError as error:
+        return str(error), gr.update(value=None)
     with voice_lock:
-        message, audio = vc.vc_single(*args)
-        return message, named_inference_audio(audio, loaded_voice)
+        message, audio = vc.vc_single(*conversion_args, inference_options=options)
+        try:
+            return message, named_inference_audio(audio, loaded_voice, output_format)
+        except (ValueError, OSError, RuntimeError) as error:
+            return "Export failed. " + str(error), gr.update(value=None)
+
+
+AUTO_INFERENCE_EMBEDDER = "Auto (model default)"
+
+
+def inference_options_from_controls(
+    split_audio=False, autotune=False, autotune_strength=1.0,
+    proposed_pitch=False, target_pitch=155, clean_audio=False, clean_strength=0.5,
+    formant=False, formant_ratio=1.0, post_process=False, effects=None,
+    post_pitch=0, gain_db=0, limiter_db=-6,
+    embedder_model=AUTO_INFERENCE_EMBEDDER, custom_embedder=None,
+):
+    if embedder_model == "custom":
+        if not custom_embedder:
+            raise ValueError("Select or install a custom embedder first.")
+        embedder_model = "custom:" + custom_embedder
+    return {
+        "embedder_model": None if embedder_model == AUTO_INFERENCE_EMBEDDER else embedder_model,
+        "split_audio": split_audio,
+        "autotune_strength": autotune_strength if autotune else None,
+        "proposed_pitch_hz": target_pitch if proposed_pitch else None,
+        "clean_audio": clean_audio,
+        "clean_strength": clean_strength,
+        "formant_ratio": formant_ratio if formant else None,
+        "post_process": post_process,
+        "effects": effects or [],
+        "post_pitch": post_pitch,
+        "gain_db": gain_db,
+        "limiter_db": limiter_db,
+    }
+
+
+def build_inference_embedder_controls(elem_id):
+    from ilaria_embedders import INFERENCE_EMBEDDERS, custom_embedder_names, install_custom_embedder
+
+    def refresh_custom(selected):
+        names = custom_embedder_names(now_dir)
+        return gr.update(choices=names, value=selected if selected in names else None)
+
+    def save_custom(folder, weights, configuration):
+        if not weights or not configuration:
+            return "Choose both the .bin weights and the .json configuration.", gr.update()
+        for file, suffix in ((weights, ".bin"), (configuration, ".json")):
+            filename = getattr(file, "orig_name", file.name)
+            if pathlib.Path(filename).suffix.casefold() != suffix:
+                return "Choose a %s file for that input." % suffix, gr.update()
+        try:
+            installed = install_custom_embedder(now_dir, folder, weights.name, configuration.name)
+        except (ValueError, OSError, RuntimeError) as error:
+            return str(error), gr.update()
+        return "Installed custom embedder: " + installed, refresh_custom(installed)
+
+    with gr.Accordion("Embedder Settings", open=False, elem_id=elem_id):
+        embedder = gr.Radio(
+            [AUTO_INFERENCE_EMBEDDER, *INFERENCE_EMBEDDERS, "custom"],
+            value=AUTO_INFERENCE_EMBEDDER, label="Embedder Model", interactive=True,
+        )
+        gr.Markdown(
+            "Auto uses the embedder saved with the voice model. "
+            "If you choose a different embedder, set Index Ratio to zero unless you have a matching index. "
+            "Chinese, Japanese and Korean HuBERT Base require an RVC v2 voice model."
+        )
+        with gr.Column(visible=False) as custom_controls:
+            with gr.Accordion("Custom Embedder", open=True):
+                with gr.Row():
+                    custom = gr.Dropdown(
+                        choices=custom_embedder_names(now_dir),
+                        label="Select Custom Embedder", interactive=True,
+                    )
+                    refresh = gr.Button("Refresh embedders")
+                folder = gr.Textbox(label="Folder Name", interactive=True)
+                with gr.Row():
+                    weights = gr.File(label="Upload .bin", file_types=["file"], interactive=True)
+                    configuration = gr.File(label="Upload .json", file_types=["file"], interactive=True)
+                install = gr.Button("Install custom embedder", variant="primary")
+                status = gr.Textbox(label="Embedder Import Status", interactive=False)
+        embedder.change(lambda selected: gr.update(visible=selected == "custom"),
+                        [embedder], [custom_controls], queue=False, show_progress=False)
+        refresh.click(refresh_custom, [custom], [custom], queue=False, show_progress=False)
+        install.click(update_operation_gate.track(save_custom, "embedder installation"),
+                      [folder, weights, configuration], [status, custom],
+                      api_name="install_custom_embedder")
+    return [embedder, custom]
+
+
+def build_inference_audio_controls(elem_id):
+    from ilaria_inference_effects import POST_EFFECTS
+
+    with gr.Accordion("Audio Processing", open=False, elem_id=elem_id):
+        split = gr.Checkbox(label="Split Audio", value=False)
+        tune = gr.Checkbox(label="Autotune", value=False)
+        tune_strength = gr.Slider(0, 1, value=1, step=0.05, label="Autotune Strength", visible=False)
+        proposed = gr.Checkbox(label="Proposed Pitch", value=False)
+        target = gr.Slider(50, 1200, value=155, step=1, label="Target Pitch (Hz)", visible=False)
+        clean = gr.Checkbox(label="Clean Audio", value=False)
+        clean_strength = gr.Slider(0, 1, value=0.5, step=0.05, label="Clean Strength", visible=False)
+        formant = gr.Checkbox(label="Formant Shifting", value=False)
+        formant_ratio = gr.Slider(0.7, 1.4, value=1.0, step=0.01, label="Formant Ratio", visible=False)
+        post = gr.Checkbox(label="Post-Process", value=False)
+        with gr.Column(visible=False) as post_controls:
+            effects = gr.CheckboxGroup(
+                list(POST_EFFECTS), value=[], label="Effects",
+            )
+            with gr.Row():
+                post_pitch = gr.Slider(-12, 12, value=0, step=1, label="Post Pitch Shift (semitones)")
+                gain = gr.Slider(-24, 24, value=0, step=0.5, label="Gain (dB)")
+                limiter = gr.Slider(-24, 0, value=-6, step=0.5, label="Limiter Threshold (dBFS)")
+        for toggle, controls in ((tune, tune_strength), (proposed, target), (clean, clean_strength),
+                                 (formant, formant_ratio), (post, post_controls)):
+            toggle.change(lambda enabled: gr.update(visible=enabled), [toggle], [controls],
+                          queue=False, show_progress=False)
+    return [split, tune, tune_strength, proposed, target, clean, clean_strength,
+            formant, formant_ratio, post, effects, post_pitch, gain, limiter]
 
 
 def select_voice_model_with_tts(sid, protect_single, protect_batch):
     result = select_voice_model(sid, protect_single, protect_batch)
     speaker = dict(result[0])
-    if "maximum" in speaker:
-        speaker["maximum"] = max(0, speaker["maximum"] - 1)
     speaker["value"] = 0
     return (*result, speaker, dict(result[3]))
 
@@ -2506,7 +2652,7 @@ ILARIARVC_CSS += '\n/* Spacing for collapsible settings and their controls acros
 
 ILARIARVC_CSS += '\n/* PC advice follows the same clear panels and spacing as the other tools. */\n.gradio-container #ilaria-main-tabs #other-tab #training-advisor {\n    border: 2px solid #D8B4FE !important;\n    background: #62416B !important;\n    border-radius: 12px !important;\n    margin: 8px 0 !important;\n    padding: 12px !important;\n}\n.gradio-container #ilaria-main-tabs #training-advisor > * {\n    border-color: #D8B4FE !important;\n    color: #FFFFFF !important;\n}\n#training-advisor-help { padding: 12px 18px !important; text-align: center; }\n#training-advisor-hardware, #training-advisor-recommendations {\n    padding: 12px 18px !important; overflow-x: auto; color: #F8EFFA !important;\n}\n#training-advisor table { width: 100%; border-collapse: collapse; text-align: left; }\n#training-advisor th, #training-advisor td {\n    color: #FFFFFF !important; border: 1px solid #C59ACD !important; padding: 8px 12px;\n}\n#training-advisor a { color: #FFD5E4 !important; text-decoration: underline; }\n'
 
-TUTORIAL_SECTIONS += (('22. PC training advisor: find a sensible starting point', "Open Other > PC training advisor, below Model information and above Update Ilaria RVC. This section starts closed. Choose the sample rate and precision you want to evaluate (32k and FP32 by default), then click Scan PC and suggest settings. The scan reads this PC's CPU, RAM, free space, PyTorch/CUDA runtime and visible GPUs. It does not upload hardware information, install drivers, run training or change any Training settings.\n\nThe hardware report contains measured facts and a PC-local scan timestamp. Total VRAM is the card's capacity; free VRAM is what is available at that moment, so Inference models and other programs can change it. If free memory cannot be read, the report says Unknown and the batch estimate uses a conservative assumption. With multiple GPUs, Auto chooses the largest compatible visible card. Select a specific GPU to evaluate it individually. Memory from separate cards is not added together. The hardware table uses visible scan IDs. The Training GPU ID advice accounts for numeric CUDA visibility mappings used by the trainer; custom UUID mappings must be confirmed manually. Windows Device Manager can use different numbering.\n\nThe settings table gives conservative starting estimates, not official maximum batches or a guarantee that training will fit. Changing the advisor's sample rate, precision or GPU recalculates the table from the existing snapshot; click Scan again for fresh free-memory figures. A higher sample rate or less free VRAM lowers the suggested batch. FP32 remains the default. GTX 16-series and Pascal SM 6.1 cards are advised to use FP32 even if you ask to evaluate FP16. Mixed precision can help some modern GPUs, but must be compared on your actual dataset. A GPU can be detected even when this older runtime cannot train on its architecture; read the runtime check before treating a suggestion as usable.\n\nCopy suitable values manually into Training > Training Settings & Other for a new experiment. Always use compatible pretrained G/D weights and prepared data for the chosen sample rate and pitch mode. If CUDA runs out of memory, halve Batch Size down to 1, keep Cache data to GPU set to No, free VRAM and check again. The suggested CPU Threads control concerns preparation; it does not change the trainer's separate DataLoader workers. Low available RAM lowers the suggested preparation thread count.\n\nTotal Epochs 300 and Save frequency 100 are Ilaria's personal baseline, not values computed from your GPU. Her usual dataset is about 35 minutes of clean expressive speech. Your recordings, voice, dataset variety and preferred result matter. Compare held-out conversions or Training previews; more epochs or a larger batch do not automatically improve quality. Lower Save frequency if you need more recovery points, accounting for save time and disk space.\n\nWhen resuming a saved experiment, preserve its original compatible data, batch size, GPU count and architecture. A fresh hardware suggestion is not permission to change an existing checkpoint's setup. This advisor cannot predict final quality, the best epoch or a precise training time from hardware alone. The report links the official RVC, Applio and PyTorch references behind the advice. Numeric batch/thread tiers are this app's own rules, clearly marked as estimates."),)
+TUTORIAL_SECTIONS += (('22. PC training advisor: find a sensible starting point', "Open Other > PC training advisor, below Model information and above Update Ilaria RVC. This section starts closed. Choose the sample rate and precision you want to evaluate (32k and FP32 by default), then click Scan PC and suggest settings. The scan reads this PC's CPU, RAM, free space, PyTorch/CUDA runtime and visible GPUs. It does not upload hardware information, install drivers, run training or change any Training settings.\n\nThe hardware report contains measured facts and a PC-local scan timestamp. Total VRAM is the card's capacity; free VRAM is what is available at that moment, so Inference models and other programs can change it. If free memory cannot be read, the report says Unknown and the batch estimate uses a conservative assumption. With multiple GPUs, Auto chooses the largest compatible visible card. Select a specific GPU to evaluate it individually. Memory from separate cards is not added together. The hardware table uses visible scan IDs. The Training GPU ID advice accounts for numeric CUDA visibility mappings used by the trainer; custom UUID mappings must be confirmed manually. Windows Device Manager can use different numbering.\n\nThe settings table gives conservative starting estimates, not official maximum batches or a guarantee that training will fit. Changing the advisor's sample rate, precision or GPU recalculates the table from the existing snapshot; click Scan again for fresh free-memory figures. A higher sample rate or less free VRAM lowers the suggested batch. FP32 remains the default. GTX 16-series and Pascal SM 6.1 cards are advised to use FP32 even if you ask to evaluate FP16. Mixed precision can help some modern GPUs, but must be compared on your actual dataset. A GPU can be detected even when this older runtime cannot train on its architecture; read the runtime check before treating a suggestion as usable.\n\nCopy suitable values manually into Training > Training Settings & Other for a new experiment. Always use compatible pretrained G/D weights and prepared data for the chosen sample rate and pitch mode. If CUDA runs out of memory, halve Batch Size down to 1, keep Cache data to GPU set to No, free VRAM and check again. The suggested CPU Threads control concerns preparation; it does not change the trainer's separate DataLoader workers. Low available RAM lowers the suggested preparation thread count.\n\nTotal Epochs 300 and Save frequency 100 are Ilaria's personal baseline, not values computed from your GPU. Her usual dataset is about 35 minutes of clean expressive speech. Your recordings, voice, dataset variety and preferred result matter. Compare held-out conversions or Training previews; more epochs or a larger batch do not automatically improve quality. Lower Save frequency if you need more recovery points, accounting for save time and disk space.\n\nWhen resuming a saved experiment, preserve its original compatible data, batch size, GPU count and architecture. A fresh hardware suggestion is not permission to change an existing checkpoint's setup. This advisor cannot predict final quality, the best epoch or a precise training time from hardware alone. The report links the official RVC and PyTorch references behind the advice. Numeric batch/thread tiers are this app's own rules, clearly marked as estimates."),)
 
 ILARIARVC_CSS += '\n.gradio-container #ilaria-main-tabs #training-settings #training-notifications {\n    border: 2px solid #D8B4FE !important;\n    background: #62416B !important;\n    border-radius: 12px !important;\n    margin: 8px 0 !important;\n    padding: 12px !important;\n}\n.gradio-container #ilaria-main-tabs #training-notifications > * {\n    color: #FFFFFF !important;\n    border-color: #D8B4FE !important;\n}\n#training-notifications .gr-prose { padding: 10px 14px !important; }\n'
 TUTORIAL_SECTIONS += (('23. Training notifications: hear when a run finishes', "Open Training > Training Settings & Other > Training notifications. Desktop alerts and Sound alerts are both enabled by default. You can turn either one off independently before starting Train Pth. The options are captured for that training job: changing the checkboxes while a job is running affects the next job, not the current one.\n\nClick Test alerts to request a test using the currently selected checkboxes. A desktop alert is a local Windows notification with Ilaria's artwork; a sound alert uses the PC's Windows sound settings. This does not require browser notification permission, an account or an internet service. Test alerts does not start training or change your model. If both options are off, the test explains that nothing was requested.\n\nTraining completed is sent only after the trainer exits successfully and its log confirms the final epoch and successful final model export. Training failed is sent if the training process exits with an error, including an out-of-memory failure before the first completed epoch, or if a final export cannot be confirmed. The notification identifies the model; read Training Log and logs/<Model Name>/training_console.log for the actual error details. A validation message that prevents a training process from starting is shown in the UI instead of producing repeated desktop alerts.\n\nStop and save is an intentional pause. It does not trigger a completed or failed alert. The notification also does not run for Train Index, Process Data, Feature Extraction, previews, import or merging; it concerns Train Pth. There is one final alert per training job, not one alert per epoch or per GPU worker.\n\nYou can minimize or close the browser tab and still receive alerts because monitoring happens in the local backend, not JavaScript in the page. Keep Ilaria RVC and its CMD/backend running. Terminating the program, logging out, sleeping the PC or shutting it down can prevent delivery; notifications are not a way to keep training running after the program is closed.\n\nWindows notification settings, Do not disturb/Focus assist, quiet time, disabled system sounds and the current output device can hide or silence an alert. A test request being accepted does not prove that Windows displayed it. Check the selected options and Windows settings if you do not see or hear the test. The helper does not change system volume, notification permissions or the power plan. It registers only the Ilaria RVC notification name and icon for the current Windows user; administrator permissions are not required. Delivery runs in a short-lived background process, so it does not slow down epoch computation. No audio recordings, models or logs are sent to an external service."),)
@@ -2697,6 +2843,44 @@ ILARIARVC_CSS += """
 }
 #update-all-changes [id^="release-history-"] .prose { padding: 6px 10px; }
 """
+
+ILARIARVC_CSS += """
+.gradio-container #single-audio-processing,
+.gradio-container #batch-audio-processing,
+.gradio-container #single-embedder-settings,
+.gradio-container #batch-embedder-settings {
+    padding: 12px;
+    border: 1px solid #D8B4FE !important;
+    border-radius: 12px;
+    background: #62416B !important;
+    color: #F8EFFA;
+}
+"""
+
+TUTORIAL_SECTIONS += ((
+    "36. Advanced inference and audio export",
+    "Single and Batch Inference each have an Export Format selector in Inference Settings. "
+    "WAV and FLAC preserve audio quality. MP3, OGG and M4A compress the converted audio. "
+    "The output player downloads the selected format. Batch also saves each file to the output folder. "
+    "Speaker ID selects a voice slot supported by the loaded model.\n\n"
+    "Open **Audio Processing** inside Inference Settings to find the optional controls. "
+    "Split Audio adds conversion boundaries at quiet pauses while keeping their timing. "
+    "Autotune moves voiced pitch towards the nearest chromatic note. Proposed Pitch adds a "
+    "limited shift based on the median voiced pitch and the target in Hz. Both use an F0-guided "
+    "model. Clean Audio reduces background noise after conversion. Formant Shifting adjusts "
+    "vocal resonance before conversion. A ratio of 1.0 keeps the original resonances.\n\n"
+    "Turn on Post-Process and choose one or more effects. Gain, Pitch Shift and Limiter "
+    "have adjustable settings. The other effects use preset values."
+), (
+    "37. Inference embedders",
+    "Open **Embedder Settings** below **Audio Processing** in Single or Batch Inference. Auto selects the embedder "
+    "stored in the voice model, or ContentVec when the model has no embedder metadata. "
+    "Choose a different embedder only when the voice model is compatible with its features. "
+    "Set Index Ratio to zero unless your index was built with the same embedder. "
+    "To install a custom HuBERT embedder, choose **custom**, enter a folder name, upload its "
+    ".bin weights and .json configuration, then click **Install custom embedder**. "
+    "The installed embedder appears in the custom selector."
+),)
 
 with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled=False) as app:
     gr.HTML(ILARIA_HEADER, elem_id="ilaria-header")
@@ -3114,6 +3298,11 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                             value=0,
                             interactive=True,
                         )
+                        format0 = gr.Radio(
+                            list(EXPORT_FORMATS), value="wav", label="Export Format", interactive=True
+                        )
+                        audio_controls0 = build_inference_audio_controls("single-audio-processing")
+                        embedder_controls0 = build_inference_embedder_controls("single-embedder-settings")
                         f0_file = gr.File(
                             label=i18n("F0 curve file [optional]"),
                             visible=False,
@@ -3127,24 +3316,22 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                             vc_output1 = gr.Textbox(label="Output Log", lines=7, max_lines=10)
                             vc_output2 = NamedInferenceAudio(label=i18n("Output Audio"), elem_id="single-inference-output")
 
+                        single_inputs = [
+                            spk_item, input_audio0, vc_transform0, f0_file, f0method0,
+                            file_index1, file_index2, index_rate1, filter_radius0,
+                            resample_sr0, rms_mix_rate0, protect0,
+                        ]
+                        single_processing = [*single_inputs, format0, *audio_controls0]
                         but0.click(
-                            convert_named_inference,
-                            [
-                                spk_item,
-                                input_audio0,
-                                vc_transform0,
-                                f0_file,
-                                f0method0,
-                                file_index1,
-                                file_index2,
-                                # file_big_npy1,
-                                index_rate1,
-                                filter_radius0,
-                                resample_sr0,
-                                rms_mix_rate0,
-                                protect0,
-                            ],
-                            [vc_output1, vc_output2],
+                            convert_named_inference, [*single_processing, *embedder_controls0],
+                            [vc_output1, vc_output2], api_name="infer_convert_with_embedder",
+                        )
+                        gr.Button(visible=False).click(
+                            convert_named_inference, single_processing, [vc_output1, vc_output2],
+                            api_name="infer_convert_with_options",
+                        )
+                        gr.Button(visible=False).click(
+                            convert_named_inference, single_inputs, [vc_output1, vc_output2],
                             api_name="infer_convert",
                         )
             with gr.TabItem(i18n("Batch Inference")):
@@ -3226,10 +3413,12 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                         opt_input = gr.Textbox(label=i18n("Output"), value="InferOutput")
                         format1 = gr.Radio(
                             label=i18n("Export Format"),
-                            choices=["flac", "wav", "mp3", "m4a"],
+                            choices=list(EXPORT_FORMATS),
                             value="flac",
                             interactive=True,
                         )
+                        audio_controls1 = build_inference_audio_controls("batch-audio-processing")
+                        embedder_controls1 = build_inference_embedder_controls("batch-embedder-settings")
                     refresh_button.click(fn=lambda: change_choices()[1], inputs=[], outputs=file_index4, api_name="infer_refresh_batch")
 
                 with gr.Column(elem_id="batch-inference-results"):
@@ -3238,26 +3427,22 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                         vc_output3 = gr.Textbox(label="Output Log", lines=8, max_lines=16)
                         vc_output_batch_audio = NamedInferenceAudio(label=i18n("Output Audio"), elem_id="batch-inference-output")
 
+                    batch_inputs = [
+                        spk_item_batch, dir_input, opt_input, inputs, vc_transform1, f0method1,
+                        file_index3, file_index4, index_rate2, filter_radius1, resample_sr1,
+                        rms_mix_rate1, protect1, format1,
+                    ]
+                    batch_processing = [*batch_inputs, *audio_controls1]
                     but1.click(
-                        batch_inference_audio,
-                        [
-                            spk_item_batch,
-                            dir_input,
-                            opt_input,
-                            inputs,
-                            vc_transform1,
-                            f0method1,
-                            file_index3,
-                            file_index4,
-                            # file_big_npy2,
-                            index_rate2,
-                            filter_radius1,
-                            resample_sr1,
-                            rms_mix_rate1,
-                            protect1,
-                            format1,
-                        ],
-                        [vc_output3, vc_output_batch_audio],
+                        batch_inference_audio, [*batch_processing, *embedder_controls1],
+                        [vc_output3, vc_output_batch_audio], api_name="infer_convert_batch_with_embedder",
+                    )
+                    gr.Button(visible=False).click(
+                        batch_inference_audio, batch_processing, [vc_output3, vc_output_batch_audio],
+                        api_name="infer_convert_batch_with_options",
+                    )
+                    gr.Button(visible=False).click(
+                        batch_inference_audio, batch_inputs, [vc_output3, vc_output_batch_audio],
                         api_name="infer_convert_batch",
                     )
             tts_pitch_methods = (
@@ -3497,11 +3682,13 @@ def warm_default_voice():
                     vc.get_vc(default_voice, find_index=False, reuse_loaded=True)
                     loaded_voice = default_voice
                 embedder = vc.cpt.get("embedder_model") or "contentvec"
-                if embedder == "spin-v2" and not os.path.isfile("assets/hubert/spin-v2.pt"):
+                from ilaria_hubert_assets import inference_embedder_installed
+
+                if not inference_embedder_installed(now_dir, embedder):
                     return
                 vc.ensure_embedder_loaded()
             # Prepare the default volume-envelope path on a short synthetic signal.
-            from infer.modules.vc.pipeline import change_rms
+            from ilaria_inference_pipeline import change_rms
             silence = np.zeros(16000, dtype=np.float32)
             change_rms(silence, 16000, silence, 16000, 0.25)
         finally:
@@ -3511,6 +3698,15 @@ def warm_default_voice():
 
 
 notify_launcher_ready()
+if not config.iscolab:
+    from ilaria_hubert_assets import install_missing_hubert_embedders
+
+    threading.Thread(
+        target=install_missing_hubert_embedders,
+        args=(now_dir, lambda message: print(message, flush=True)),
+        name="HuBERT downloads",
+        daemon=True,
+    ).start()
 if not config.iscolab and os.environ.get("ILARIA_RVC_LIFECYCLE_V2") == "1":
     threading.Thread(target=browser_presence.shutdown_on_close, name="Browser presence", daemon=True).start()
 threading.Thread(target=warm_default_voice, name="Default voice warmup", daemon=True).start()
