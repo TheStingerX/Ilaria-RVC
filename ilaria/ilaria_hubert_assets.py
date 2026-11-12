@@ -161,10 +161,10 @@ def inference_embedder_installed(root, name):
     return False
 
 
-def install_missing_hubert_embedders(root, report):
-    for name in HUBERT_EMBEDDERS:
-        if inference_embedder_installed(root, name):
-            continue
+def start_missing_hubert_downloads(root, report):
+    from threading import Thread
+
+    def install(name):
         report(f"Downloading embedder: {name}")
         try:
             download_builtin_embedder(root, name)
@@ -172,3 +172,7 @@ def install_missing_hubert_embedders(root, report):
             report(f"Embedder download failed for {name}: {error}. Select it in Inference to retry.")
         else:
             report(f"Embedder ready: {name}")
+
+    for name in HUBERT_EMBEDDERS:
+        if not inference_embedder_installed(root, name):
+            Thread(target=install, args=(name,), name=f"Download {name}", daemon=True).start()

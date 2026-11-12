@@ -33,6 +33,11 @@ from dotenv import load_dotenv
 now_dir = os.getcwd()
 sys.path.append(now_dir)
 load_dotenv()
+if os.name == "nt" and __name__ == "__main__":
+    from ilaria_hubert_assets import start_missing_hubert_downloads
+
+    start_missing_hubert_downloads(now_dir, lambda message: print(message, flush=True))
+
 from infer.modules.vc.modules import VC
 from ilaria_inference_pipeline import preload_rmvpe, release_rmvpe
 from i18n.i18n import I18nAuto
@@ -3698,15 +3703,6 @@ def warm_default_voice():
 
 
 notify_launcher_ready()
-if not config.iscolab:
-    from ilaria_hubert_assets import install_missing_hubert_embedders
-
-    threading.Thread(
-        target=install_missing_hubert_embedders,
-        args=(now_dir, lambda message: print(message, flush=True)),
-        name="HuBERT downloads",
-        daemon=True,
-    ).start()
 if not config.iscolab and os.environ.get("ILARIA_RVC_LIFECYCLE_V2") == "1":
     threading.Thread(target=browser_presence.shutdown_on_close, name="Browser presence", daemon=True).start()
 threading.Thread(target=warm_default_voice, name="Default voice warmup", daemon=True).start()

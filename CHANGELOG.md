@@ -4,7 +4,7 @@
 
 - Added WAV, MP3, FLAC, OGG and M4A export and new audio processing controls for Single and Batch Inference.
 - Added Embedder Settings below Audio Processing in Single and Batch Inference. Select ContentVec, Spin, Spin-v2, Chinese, Japanese or Korean HuBERT Base, or install a custom HuBERT from a .bin and .json pair.
-- The first launch after updating downloads missing Spin and language HuBERT weights into their own folders in the background. Downloads are verified before installation.
+- Missing Spin and language HuBERT downloads start immediately when the updated program launches, before the interface loads. Each download is verified before installation.
 
 ## 1.1 Beta
 
