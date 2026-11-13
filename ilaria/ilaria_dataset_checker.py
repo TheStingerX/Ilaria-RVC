@@ -352,7 +352,7 @@ def check_dataset(dataset_path, silence_db=-45.0, min_silence_seconds=2.0, volum
     except Exception as error:
         yield "Dataset check stopped: " + str(error), "No source files have been changed."
 
-
+    
 def preview_recording(root, scan, name, offset, around_silence):
     if not scan or not name or name not in scan["results"]:
         return "Run Check dataset and choose a recording first.", None

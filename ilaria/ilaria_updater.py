@@ -33,7 +33,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 import uuid
 import zipfile
 
-CURRENT_VERSION = '2.0.0'
+CURRENT_VERSION = '2.1.0'
 MANIFEST_URL = 'https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/version.json'
 LEGACY_MANAGED_FILES = (
     'ILARIA_RVC.py', 'ILARIA_RVC.bat',

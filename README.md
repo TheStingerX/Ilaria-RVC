@@ -1,7 +1,7 @@
 # ♡ Ilaria RVC ♡
 
 Ilaria RVC is a Windows voice conversion and training app based on Mainline RVC.
-This repository contains the source for version **2.0.0**.
+This repository contains the source for version **2.1.0**.
 
 ## Features added since Mainline RVC
 
@@ -52,7 +52,7 @@ In an existing installation, open **Other → Update Ilaria RVC** to check for u
 
 ## Work on the source
 
-For a Windows development setup, start with a clean installation updated to 2.0.0.
+For a Windows development setup, start with a clean installation updated to 2.1.0.
 Close the app and copy the following items into your source checkout, keeping the same paths:
 
 | Copy from the Windows installation | Purpose |
@@ -78,4 +78,4 @@ entry points and dependency files are retained for reference in
 - FCPE uses [TorchFCPE](https://pypi.org/project/torchfcpe/0.0.4/). License notices for vendored Python packages accompany their source.
 - The Audio Analyzer extends [Ilaria Audio Analyzer](https://github.com/TheStingerX/Ilaria-Audio-Analyzer).
 
-See [what changed in 2.0.0](CHANGELOG.md).
+See [what changed in 2.1.0](CHANGELOG.md).

@@ -38,16 +38,101 @@ TRAINING_METRICS_PANEL = """
 </section>
 """
 
+LIVE_TRAINING_PANEL = """
+<style>
+#ilaria-live-training { padding: .9rem 1rem; border:1px solid #d8b4fe; border-radius:10px; }
+#ilaria-live-training dl { display:grid; grid-template-columns:repeat(auto-fit,minmax(13rem,1fr)); gap:.65rem; margin:.65rem 0 0; }
+#ilaria-live-training dl:empty { display:none; }
+#ilaria-live-training dl > div { padding:.6rem .75rem; background:#412849; border-radius:8px; overflow-wrap:anywhere; }
+#ilaria-live-training dt { color:#ffc0cb; }
+#ilaria-live-training dd { margin:.2rem 0 0; color:#fff4fc; font-variant-numeric:tabular-nums; }
+</style>
+<section id="ilaria-live-training" aria-label="Live training metrics">
+    <strong>Live training metrics</strong>
+    <p data-live-status role="status">Checking for an active training run…</p>
+    <dl></dl>
+    <img alt="Training loss and epoch charts" style="max-width:100%;height:auto" hidden>
+</section>
+"""
+
 TRAINING_METRICS_JS = r"""
 () => {
     const host = document.querySelector("gradio-app");
     const root = host?.shadowRoot || host || document;
+    const selectedModel = () => root.querySelector("#training-model-name textarea, #training-model-name input")?.value.trim() || "";
+    let previousLiveData = "";
+    let previousLivePanel;
+    let chartKey = "";
+    let nextChart = 0;
+    let chartLoading = false;
+    async function updateLiveChart(panel, model) {
+        if (!model || chartLoading || Date.now() < nextChart) return;
+        chartLoading = true;
+        nextChart = Date.now() + 15000;
+        try {
+            const response = await fetch("ilaria/training-metrics?" + new URLSearchParams({model}), {
+                method: "POST", cache: "no-store", signal: AbortSignal.timeout(15000)
+            });
+            const data = await response.json();
+            const image = panel.querySelector("img");
+            if (chartKey === model && data.image) {
+                image.src = "data:image/png;base64," + data.image;
+                image.hidden = false;
+            }
+        } catch (error) {
+            // Keep the last chart while the metrics reader reconnects.
+        } finally {
+            chartLoading = false;
+        }
+    }
+    async function pollLiveTraining() {
+        const panel = root.querySelector("#ilaria-live-training");
+        try {
+            if (!panel || document.hidden || !panel.getClientRects().length) return;
+            const status = panel.querySelector("[data-live-status]");
+            const response = await fetch("ilaria/live-training?" + new URLSearchParams({model: selectedModel()}), {
+                method: "POST", cache: "no-store", signal: AbortSignal.timeout(5000)
+            });
+            const data = await response.json();
+            const model = data.model || "";
+            if (panel !== previousLivePanel || chartKey !== model) {
+                chartKey = model;
+                nextChart = 0;
+                panel.querySelector("img").hidden = true;
+            }
+            if (data.values?.length) void updateLiveChart(panel, model);
+            const serialized = JSON.stringify(data);
+            if (panel === previousLivePanel && serialized === previousLiveData) return;
+            previousLivePanel = panel;
+            previousLiveData = serialized;
+            status.textContent = data.status || (data.active
+                ? data.model + (data.values.length ? " is training." : " is training. Waiting for the first recorded values…")
+                : "Last recorded values for " + data.model + (data.values.length ? "." : " are unavailable."));
+            const values = panel.querySelector("dl");
+            values.replaceChildren();
+            for (const [label, value] of data.values || []) {
+                const item = document.createElement("div");
+                const term = document.createElement("dt");
+                const detail = document.createElement("dd");
+                term.textContent = label;
+                detail.textContent = value;
+                item.append(term, detail);
+                values.append(item);
+            }
+        } catch (error) {
+            previousLiveData = "";
+            if (panel) panel.querySelector("[data-live-status]").textContent = "Waiting to reconnect to training metrics…";
+        } finally {
+            setTimeout(pollLiveTraining, 2000);
+        }
+    }
+    pollLiveTraining();
     root.addEventListener("click", async (event) => {
         const button = event.target.closest("#ilaria-training-metrics button");
         if (!button || button.disabled) return;
         const panel = button.closest("#ilaria-training-metrics");
         const status = panel.querySelector("[data-status] span");
-        const model = root.querySelector("#training-model-name textarea, #training-model-name input")?.value.trim();
+        const model = selectedModel();
         if (!model) {
             status.textContent = "Enter a Model Name in Training, then refresh.";
             return;

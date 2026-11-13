@@ -177,6 +177,8 @@ def run(
         logger.info("Training background policy: %s", process_policy)
         # utils.check_git_hash(hps.model_dir)
         writer = SummaryWriter(log_dir=hps.model_dir)
+        writer.add_scalar("training/run_started", 1, 0)
+        writer.flush()
         writer_eval = SummaryWriter(log_dir=os.path.join(hps.model_dir, "eval"))
 
     # A single device needs neither a process group nor DDP reducers.
@@ -658,6 +660,7 @@ def train_and_evaluate(
                     images=image_dict,
                     scalars=scalar_dict,
                 )
+                writer.flush()
         global_step += 1
         completed_batches = batch_position + 1
         if target_steps is not None:

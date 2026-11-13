@@ -1402,7 +1402,7 @@ def _click_train(
                 except Exception:
                     pass
             raise
-        training_session.attach(p)
+        training_session.attach(p, log_offset=log_offset)
         if notification_options:
             try:
                 from ilaria_training_notification_monitor import start_notification_monitor
@@ -1776,6 +1776,9 @@ ILARIA_HEADER = """
     <div class="ilaria-support">
       <a class="ilaria-shop" href="https://ko-fi.com/ilariaowo" target="_blank" rel="noopener noreferrer">
         💖 Ilaria's Ko-Fi Shop <span aria-hidden="true">&#8599;&#xFE0E;</span>
+      </a>
+      <a class="ilaria-shop" href="https://ilariarvc.shop/" target="_blank" rel="noopener noreferrer">
+        💖 Ilaria RVC Website <span aria-hidden="true">&#8599;&#xFE0E;</span>
       </a>
     </div>
   </div>
@@ -3671,7 +3674,7 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
 
         with gr.TabItem("Training Dashboard", elem_id="training-dashboard-tab"):
             from ilaria_training_dashboard import LocalTensorBoard, diagnostic_report, register_training_metrics
-            from ilaria_training_dashboard_ui import TRAINING_METRICS_PANEL, TRAINING_METRICS_JS
+            from ilaria_training_dashboard_ui import TRAINING_METRICS_PANEL, TRAINING_METRICS_JS, LIVE_TRAINING_PANEL
 
             tensorboard_server = LocalTensorBoard(now_dir)
 
@@ -3683,9 +3686,12 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
 
             def open_tensorboard():
                 try:
-                    url = tensorboard_server.start()
+                    active = training_session.active_training()
+                    url = tensorboard_server.charts_url(active[0] if active else None)
                 except (OSError, ValueError, RuntimeError) as error:
                     return f"TensorBoard could not start: {error}"
+                if url is None:
+                    return "<p>TensorBoard is waiting for recorded metrics. Click Start TensorBoard again once values appear above.</p>"
                 return (
                     f'<iframe src="{url}" title="TensorBoard" '
                     'style="display:block;width:100%;height:75vh;min-height:480px;border:0;border-radius:10px" '
@@ -3694,7 +3700,7 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
 
             gr.HTML(TRAINING_METRICS_PANEL)
             with gr.Accordion("TensorBoard", open=False, elem_id="dashboard-tensorboard"):
-                gr.Markdown("Start a local TensorBoard server for detailed charts across models in the logs folder.")
+                gr.HTML(LIVE_TRAINING_PANEL)
                 with gr.Row():
                     tensorboard_start = gr.Button("Start TensorBoard")
                     tensorboard_stop = gr.Button("Stop TensorBoard")
@@ -3754,7 +3760,7 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
             quiet=True,
             prevent_thread_lock=True,
         )
-    register_training_metrics(app.server_app, now_dir)
+    register_training_metrics(app.server_app, now_dir, training_session)
     if not config.iscolab:
         register_binary_model_import(app.server_app, now_dir, update_operation_gate)
         if not config.noautoopen:

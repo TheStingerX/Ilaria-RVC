@@ -189,3 +189,9 @@ Model library
 - Matched the Download embedders panel to the other categories and tightened category spacing.
 - Renamed Reload UI to Restart Ilaria RVC.
 - Reduced the Windows NVIDIA package by leaving out optional embedders, UVR5 weights, the DirectML RMVPE file, ItaIla and the bundled RVC v1 pretrained weights.
+
+## 2.1.0
+
+- Added the Ilaria RVC website button next to Ko-Fi.
+- Added live training metrics and charts for the active model. When training is idle, select a Model Name to inspect recorded metrics.
+- Fixed embedded TensorBoard startup so it waits for scalar data and refreshes charts automatically. Training writes an initial event and flushes metrics as they are recorded.

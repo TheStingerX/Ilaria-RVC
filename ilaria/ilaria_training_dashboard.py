@@ -1,5 +1,6 @@
 """Read training metrics and manage an optional local TensorBoard server."""
 import atexit
+import json
 from collections import deque
 import os
 from pathlib import Path
@@ -131,7 +132,7 @@ class LocalTensorBoard:
                 sock.bind(("127.0.0.1", 0))
                 port = sock.getsockname()[1]
             self.process = subprocess.Popen(
-                [sys.executable, str(Path(__file__).with_name("ilaria_tensorboard_entry.py")), "--logdir", str(logs), "--host", "127.0.0.1", "--port", str(port)],
+                [sys.executable, str(Path(__file__).with_name("ilaria_tensorboard_entry.py")), "--logdir", str(logs), "--load_fast=false", "--reload_interval", "2", "--host", "127.0.0.1", "--port", str(port)],
                 cwd=self.root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
@@ -151,6 +152,24 @@ class LocalTensorBoard:
             self.process = None
             self.url = None
             raise RuntimeError("TensorBoard did not respond on the local port. Try starting it again.")
+
+    def charts_url(self, model=None):
+        url = self.start()
+        opener = build_opener(ProxyHandler({}))
+        deadline = monotonic() + 25
+        while monotonic() < deadline:
+            try:
+                with opener.open(url + "data/plugins_listing", timeout=1) as response:
+                    enabled = json.load(response).get("scalars", {}).get("enabled")
+                if enabled:
+                    with opener.open(url + "data/plugin/scalars/tags", timeout=2) as response:
+                        tags = json.load(response)
+                    if any(series for run, series in tags.items() if not model or run.casefold() == model.casefold()):
+                        return url + "#scalars"
+            except (OSError, ValueError):
+                pass
+            sleep(0.5)
+        return None
 
     def stop(self):
         with self.lock:
@@ -184,13 +203,84 @@ def refresh_training_metrics(root, name):
 
 
 
-def register_training_metrics(server, root):
+def live_training_metrics(root, name, log_offset=None):
+    folder = experiment_path(root, name)
+    active = log_offset is not None
+    result = {"model": name, "active": active, "values": []}
+    try:
+        with (folder / "train.log").open("rb") as log:
+            end = log.seek(0, os.SEEK_END)
+            start = min(log_offset or 0, end)
+            tail = max(start, end - 128 * 1024)
+            log.seek(tail)
+            if tail > start:
+                log.readline()
+            records = log.read(end - log.tell()).decode("utf-8", errors="replace")
+    except FileNotFoundError:
+        return result
+    records = records.split("\n")[:-1]
+    completed = None
+    progress = None
+    losses = None
+    batch = None
+    for line in records:
+        message = line.rstrip().rsplit("\t", 1)[-1]
+        if EPOCH.search(message):
+            progress = None
+            completed = message
+        if message.startswith(("Train Epoch:", "STEP_PROGRESS!", "RESUMED!")):
+            progress = message
+        if message.startswith("[") and re.match(r"^\[\d+,", message):
+            batch = message.strip("[]").split(", ", 1)
+        if message.startswith("loss_disc="):
+            losses = (message, batch)
+    if completed:
+        match = EPOCH.search(completed)
+        values = result["values"]
+        values.extend([["Last recorded epoch", match[1]], ["Steps at epoch record", match[2]],
+                       ["Epoch duration", f"{match[3]}h {match[4]}m {match[5]}s"]])
+        for label, pattern in (("Remaining", r"ETA\(est\): ([^|]+)"),
+                               ("Estimated finish", r"End\(est\): ([^|]+)")):
+            found = re.search(pattern, completed)
+            if found:
+                values.append([label, found[1].strip()])
+    if progress:
+        result["values"].append(["Latest progress", progress.removeprefix("STEP_PROGRESS! ")])
+    if losses:
+        message, batch = losses
+        if batch and len(batch) == 2:
+            result["values"].extend([["Loss recorded at step", batch[0]], ["Learning rate", batch[1]]])
+        labels = {"loss_disc": "Discriminator loss", "loss_gen": "Generator adversarial loss", "loss_fm": "Feature matching loss",
+                  "loss_mel": "Mel loss", "loss_kl": "KL loss"}
+        result["values"].extend([labels[key], value] for key, value in re.findall(r"(loss_\w+)=([^,\s]+)", message)
+                                if key in labels)
+    return result
+
+
+def register_training_metrics(server, root, training_session=None):
     from fastapi import Request
     from fastapi.responses import JSONResponse
     from starlette.concurrency import run_in_threadpool
     from threading import BoundedSemaphore
 
     slot = BoundedSemaphore(1)
+
+    async def read_live_metrics(request: Request):
+        if (getattr(request.app, "auth", None) is not None
+                and request.cookies.get("access-token") not in request.app.tokens):
+            return JSONResponse({"status": "Sign in again to view training metrics."}, status_code=401)
+        if request.headers.get("origin", "").casefold() != f"{request.url.scheme}://{request.url.netloc}".casefold():
+            return JSONResponse({"status": "Open the dashboard from the Ilaria RVC page."}, status_code=403)
+        active = training_session.active_training() if training_session is not None else None
+        name, offset = active or (request.query_params.get("model", "").strip(), None)
+        if not name:
+            return {"status": "Start training or enter a Model Name to see its last recorded values."}
+        try:
+            return await run_in_threadpool(live_training_metrics, root, name, offset)
+        except (OSError, ValueError):
+            return {"status": "Could not read metrics for the selected model."}
+
+    server.add_api_route("/ilaria/live-training", read_live_metrics, methods=["POST"], include_in_schema=False)
 
     async def read_metrics(request: Request):
         if getattr(request.app, "auth", None) is not None and request.cookies.get("access-token") not in request.app.tokens:

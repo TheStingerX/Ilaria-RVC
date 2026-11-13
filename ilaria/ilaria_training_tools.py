@@ -58,11 +58,19 @@ class TrainingSession:
                 if self.job is job and (job["process"] is None or job["process"].poll() is not None):
                     self.job = None
 
-    def attach(self, process):
+    def attach(self, process, log_offset=0):
         with self.lock:
             if self.job is None:
                 raise RuntimeError("The training session was not registered.")
+            self.job["log_offset"] = log_offset
             self.job["process"] = process
+
+    def active_training(self):
+        with self.lock:
+            self._prune()
+            if self.job is None or self.job["process"] is None:
+                return None
+            return self.job["name"], self.job["log_offset"]
 
     def request_stop(self):
         with self.lock:
