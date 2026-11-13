@@ -33,11 +33,6 @@ from dotenv import load_dotenv
 now_dir = os.getcwd()
 sys.path.append(now_dir)
 load_dotenv()
-if os.name == "nt" and __name__ == "__main__":
-    from ilaria_hubert_assets import start_missing_hubert_downloads
-
-    start_missing_hubert_downloads(now_dir, lambda message: print(message, flush=True))
-
 from infer.modules.vc.modules import VC
 from ilaria_inference_pipeline import preload_rmvpe, release_rmvpe
 from i18n.i18n import I18nAuto
@@ -1474,6 +1469,25 @@ def check_training_dataset(dataset, silence_db=-45, silence_seconds=2, volume_to
                              volume_tolerance_db=float(volume_tolerance), root=now_dir)
 
 
+def scan_dataset_with_previews(dataset, silence_db, silence_seconds, volume_tolerance):
+    from ilaria_dataset_checker import check_dataset
+
+    scan = {}
+    def remember(folder, results):
+        scan.update(folder=str(folder), results={item["name"]: item for item in results})
+
+    for status, report in check_dataset(dataset, silence_db, silence_seconds, volume_tolerance,
+                                        root=now_dir, on_complete=remember):
+        names = list(scan.get("results", {}))
+        yield status, report, scan.copy(), gr.update(choices=names, value=None), None, ""
+
+
+def play_dataset_preview(scan, name, offset, around_silence):
+    from ilaria_dataset_checker import preview_recording
+
+    return preview_recording(now_dir, scan, name, offset, around_silence)
+
+
 def stop_and_save_training():
     try:
         return training_session.request_stop()
@@ -2691,7 +2705,7 @@ TUTORIAL_SECTIONS += (('31. One pretrained selector for both files', 'Choose Pre
 
 ILARIARVC_CSS += '\n.gradio-container #ilaria-main-tabs #pretrained-picker { padding: 12px !important; margin: 10px 0 !important; border: 2px solid #D8B4FE !important; border-radius: 12px !important; background: #62416B !important; gap: 8px !important; }\n'
 
-ILARIARVC_CSS += '\n.gradio-container #ilaria-main-tabs #other-tab #pretrained-download {\n    border: 2px solid #D8B4FE !important; background: #62416B !important;\n    border-radius: 12px !important; margin: 8px 0 !important; padding: 12px !important;\n}\n#pretrained-download-help { padding: 12px 20px !important; line-height: 1.65 !important; text-align: center !important; color: #F8EFFA !important; }\n'
+ILARIARVC_CSS += '\n.gradio-container #ilaria-main-tabs #other-tab #pretrained-download,\n.gradio-container #ilaria-main-tabs #other-tab #embedder-download {\n    border: 2px solid #D8B4FE !important; background: #62416B !important;\n    border-radius: 12px !important; margin: 8px 0 !important; padding: 12px !important;\n}\n#pretrained-download-help { padding: 12px 20px !important; line-height: 1.65 !important; text-align: center !important; color: #F8EFFA !important; }\n'
 TUTORIAL_SECTIONS += (('32. Download pretrained pairs', 'Open Other > Download pretrained models, directly below the voice-model downloader. This tool downloads generator/discriminator pretrained pairs for training, not voice models for inference. Paste a public Hugging Face repository or folder page, a direct pretrained ZIP, or a direct G .pth link. For a direct file, it looks for the matching D beside it. You may paste the second direct link in Matching D .pth link when necessary; keep the two files from the same compatible pair.\n\nClick Download pretrained pair and follow Pretrained Download Log. Download, extraction and installation show progress. If a repository contains several pairs or ZIPs, the log lists direct links: choose the pair you want rather than relying on a random file. ZIPs may contain several complete pairs in separate folders; the tool installs complete G/D pairs and leaves unrelated files out.\n\nFiles go to assets/pretrained_custom/<package>, separate from inference weights and personal training logs. When the log confirms 100%, open Training Settings & Other and click Refresh pretrained list in the compact pretrained block. Select the installed entry: the single dropdown chooses G and D together. Keep vocoder, sample rate, RVC version and pitch settings compatible with the pair. A G/D filename match is not a tensor compatibility test: strict checks still occur when the trainer loads the pair.\n\nExisting different files are kept and reported as a conflict. Failed or interrupted downloads do not expose half-installed pairs in the menu. A single inference .pth with a .index is not a training pretrained pair and belongs in the voice-model downloader above. The pretrained downloader does not read checkpoint Python objects or promise a particular voice quality. For offline installation, place both files together under assets/pretrained_custom/<name> and refresh the training selector.'),)
 
 ILARIARVC_CSS += '\n.gradio-container #ilaria-main-tabs #recommended-pretraineds { background: #62416B !important; border: 2px solid #D8B4FE !important; border-radius: 12px !important; margin: 12px 0 !important; padding: 12px !important; }\n#recommended-pretrained-help { padding: 12px 20px !important; text-align: center !important; line-height: 1.65 !important; }\n#recommended-pretrained-details { padding: 12px 18px !important; color: #FFFFFF !important; }\n#recommended-pretrained-details th, #recommended-pretrained-details td { color: #FFFFFF !important; border: 1px solid #D8B4FE !important; padding: 8px 12px !important; }\n'
@@ -2825,7 +2839,7 @@ ILARIARVC_CSS += """
 #other-tab .ilaria-other-section {
     border-bottom: 1px solid #B48FC4;
     padding: 9px 12px;
-    margin: 14px 0 2px;
+    margin: 0 0 2px;
     color: #F8EFFA;
 }
 #other-tab .ilaria-other-section h3 {
@@ -2887,12 +2901,14 @@ TUTORIAL_SECTIONS += ((
     "The installed embedder appears in the custom selector."
 ),)
 
+ILARIARVC_CSS += '\n.gradio-container #ilaria-main-tabs :is(#dashboard-tensorboard, #dashboard-diagnostic) {\n    border: 2px solid #D8B4FE !important;\n    background: #62416B !important;\n    border-radius: 12px !important;\n    margin-block: 8px !important;\n    padding: 12px !important;\n}\n.gradio-container #ilaria-main-tabs :is(#dashboard-tensorboard, #dashboard-diagnostic) > * {\n    color: #FFFFFF !important;\n    border-color: #D8B4FE !important;\n}\n.gradio-container #ilaria-main-tabs :is(.gr-prose, .prose):not(:is(.gr-prose, .prose) *) {\n    box-sizing: border-box;\n    min-width: 0;\n    padding: 12px clamp(12px, 2vw, 20px) !important;\n    line-height: 1.6 !important;\n    overflow-wrap: anywhere;\n}\n.gradio-container #ilaria-main-tabs textarea {\n    box-sizing: border-box;\n    padding: 10px 14px !important;\n    line-height: 1.5 !important;\n    min-height: 44px;\n}\n.gradio-container #ilaria-main-tabs :is(.gr-prose, .prose) :is(th, td) {\n    padding: 8px 12px !important;\n}\n'
+
 with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled=False) as app:
     gr.HTML(ILARIA_HEADER, elem_id="ilaria-header")
     program_update_notice = gr.Markdown("", visible=False, elem_id="program-update-notice")
     with gr.Tabs(elem_id="ilaria-main-tabs"):
         with gr.TabItem(i18n("Training")):
-            exp_dir1 = gr.Textbox(label=i18n("Model Name"), value="", placeholder="ilaria")
+            exp_dir1 = gr.Textbox(label=i18n("Model Name"), value="", placeholder="ilaria", elem_id="training-model-name")
             with gr.Accordion("Training Settings & Other", open=False, elem_id="training-settings") as training_settings:
                 version19 = gr.Radio(
                     label=i18n("Version 2 only here"),
@@ -3051,6 +3067,17 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                     dataset_check_button = gr.Button("Check dataset", variant="primary")
                     dataset_check_log = gr.Textbox(label="Dataset Check Log", lines=1, max_lines=2, interactive=False)
                     dataset_check_report = gr.Markdown("", elem_id="dataset-check-report")
+                    dataset_scan = gr.State()
+                    with gr.Row():
+                        dataset_recording = gr.Dropdown(label="Recording to preview", choices=[])
+                        dataset_offset = gr.Number(label="Start time (seconds)", value=0)
+                    dataset_at_gap = gr.Checkbox(label="Start just before the longest silence", value=True)
+                    dataset_listen = gr.Button("Load 12-second preview")
+                    dataset_preview_status = gr.Textbox(label="Preview status", interactive=False)
+                    dataset_preview_audio = gr.Audio(label="Dataset preview", interactive=False)
+                    dataset_listen.click(play_dataset_preview,
+                        [dataset_scan, dataset_recording, dataset_offset, dataset_at_gap],
+                        [dataset_preview_status, dataset_preview_audio], show_progress=False)
                 with gr.Accordion("Training previews", open=False, elem_id="training-previews"):
                     gr.Markdown("Enable before starting training. Upload one short test clip (up to 30 seconds) and listen to the same conversion at each interval. CPU previews pause training briefly and use Index Ratio 0.")
                     preview_enabled = gr.Checkbox(label="Generate training previews", value=False)
@@ -3143,8 +3170,11 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                 [dataset_removal_log, dataset_to_remove, trainset_dir4], show_progress=False)
             dataset_upload.upload(import_training_dataset, [dataset_upload, exp_dir1],
                 [dataset_upload_log, trainset_dir4], show_progress=False, api_name="import_training_dataset")
-            dataset_check_button.click(check_training_dataset,
-                [trainset_dir4, checker_silence_db, checker_silence_seconds, checker_volume_db],
+            dataset_check_inputs = [trainset_dir4, checker_silence_db, checker_silence_seconds, checker_volume_db]
+            dataset_check_button.click(scan_dataset_with_previews, dataset_check_inputs,
+                [dataset_check_log, dataset_check_report, dataset_scan, dataset_recording,
+                 dataset_preview_audio, dataset_preview_status], show_progress=False)
+            gr.Button(visible=False).click(check_training_dataset, dataset_check_inputs,
                 [dataset_check_log, dataset_check_report], show_progress=False, api_name="check_dataset")
             stop_training_button.click(stop_and_save_training, [], [stop_training_log],
                 queue=False, show_progress=False, api_name="stop_and_save_training")
@@ -3490,6 +3520,30 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                 download_models_log = gr.Textbox(label="Download Log", lines=3, max_lines=6, interactive=False)
                 download_models_button.click(download_voice_models, [model_url], [download_models_log], show_progress=False, api_name="download_voice_model")
 
+            with gr.Accordion("Download embedders", open=False, elem_id="embedder-download"):
+                from ilaria_hubert_assets import HUBERT_EMBEDDERS, download_builtin_embedder, inference_embedder_installed
+                from ilaria_embedders import ensure_embedder
+
+                def download_selected_embedder(name):
+                    if inference_embedder_installed(now_dir, name):
+                        yield f"{name} is already installed."
+                        return
+                    yield f"Downloading {name}…"
+                    try:
+                        if name == "spin-v2":
+                            yield from ensure_embedder(now_dir, name)
+                        else:
+                            download_builtin_embedder(now_dir, name)
+                    except (OSError, ValueError) as error:
+                        yield f"Download failed: {error}"
+                        return
+                    yield f"{name} is installed and ready."
+
+                embedder_choice = gr.Dropdown([*HUBERT_EMBEDDERS, "spin-v2"], value="spin", label="Embedder")
+                embedder_button = gr.Button("Download selected embedder", variant="primary")
+                embedder_log = gr.Textbox(label="Embedder download status", interactive=False)
+                embedder_button.click(download_selected_embedder, [embedder_choice], [embedder_log])
+
             with gr.Accordion("Download pretrained models", open=False, elem_id="pretrained-download"):
                 gr.Markdown("Paste a public Hugging Face repository, pretrained ZIP, or direct G .pth link. If needed, add its matching D link beside it. Both files are installed together in assets/pretrained_custom. Then open Training and click Refresh pretrained list.", elem_id="pretrained-download-help")
                 with gr.Row():
@@ -3609,11 +3663,53 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                 install_update_button.click(download_program_update, [], [update_status], show_progress=False, api_name=False)
                 update_status.change(None, [update_status], [], _js=UPDATER_RELOAD_JS, queue=False)
 
-            reload_ui_button = gr.Button("Reload UI", variant="secondary")
+            reload_ui_button = gr.Button("Restart Ilaria RVC", variant="secondary")
             reload_ui_log = gr.Textbox(label="Reload status", lines=1, interactive=False)
             reload_ui_instance = gr.Textbox(value=str(os.getpid()), visible=False, elem_id="reload-ui-instance")
             reload_ui_button.click(restart_local_ui, [], reload_ui_log, show_progress=False)
             reload_ui_log.change(None, [reload_ui_log, reload_ui_instance], [], _js=RELOAD_LOCAL_UI_JS, queue=False)
+
+        with gr.TabItem("Training Dashboard", elem_id="training-dashboard-tab"):
+            from ilaria_training_dashboard import LocalTensorBoard, diagnostic_report, register_training_metrics
+            from ilaria_training_dashboard_ui import TRAINING_METRICS_PANEL, TRAINING_METRICS_JS
+
+            tensorboard_server = LocalTensorBoard(now_dir)
+
+            def create_diagnostic(name):
+                try:
+                    return diagnostic_report(now_dir, name, _startup_version)
+                except (OSError, ValueError) as error:
+                    return f"Could not create report: {error}"
+
+            def open_tensorboard():
+                try:
+                    url = tensorboard_server.start()
+                except (OSError, ValueError, RuntimeError) as error:
+                    return f"TensorBoard could not start: {error}"
+                return (
+                    f'<iframe src="{url}" title="TensorBoard" '
+                    'style="display:block;width:100%;height:75vh;min-height:480px;border:0;border-radius:10px" '
+                    'referrerpolicy="no-referrer"></iframe>'
+                )
+
+            gr.HTML(TRAINING_METRICS_PANEL)
+            with gr.Accordion("TensorBoard", open=False, elem_id="dashboard-tensorboard"):
+                gr.Markdown("Start a local TensorBoard server for detailed charts across models in the logs folder.")
+                with gr.Row():
+                    tensorboard_start = gr.Button("Start TensorBoard")
+                    tensorboard_stop = gr.Button("Stop TensorBoard")
+                tensorboard_status = gr.HTML("")
+                tensorboard_start.click(open_tensorboard, [], tensorboard_status, queue=False)
+                def close_tensorboard():
+                    tensorboard_server.stop()
+                    return "<p>TensorBoard stopped.</p>"
+
+                tensorboard_stop.click(close_tensorboard, [], tensorboard_status, queue=False)
+            with gr.Accordion("Diagnostic report", open=False, elem_id="dashboard-diagnostic"):
+                gr.Markdown("Generate a report for the selected training model. Review it before sharing.")
+                diagnostic_button = gr.Button("Generate diagnostic report")
+                diagnostic_output = gr.Textbox(label="Copy this report", lines=10, interactive=False)
+                diagnostic_button.click(create_diagnostic, [exp_dir1], diagnostic_output, queue=False)
 
         with gr.TabItem("Glossary", elem_id="tutorial-tab"):
             with gr.Column(elem_id="tutorial-content"):
@@ -3635,6 +3731,7 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
     if not config.iscolab:
         app.load(_js=BINARY_MODEL_UPLOAD_JS)
     app.load(_js=WAVEFORM_JS)
+    app.load(_js=TRAINING_METRICS_JS, queue=False, show_progress=False)
     presence_tab = gr.Textbox(visible=False)
     presence_open = gr.Checkbox(visible=False)
     presence_seq = gr.Number(visible=False)
@@ -3657,6 +3754,7 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
             quiet=True,
             prevent_thread_lock=True,
         )
+    register_training_metrics(app.server_app, now_dir)
     if not config.iscolab:
         register_binary_model_import(app.server_app, now_dir, update_operation_gate)
         if not config.noautoopen:

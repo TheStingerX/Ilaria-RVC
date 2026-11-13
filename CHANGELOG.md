@@ -177,3 +177,15 @@ Model library
 - Added Split Audio, Autotune, Proposed Pitch, Clean Audio, Formant Shifting and Post-Process effects to Single and Batch Inference. Export in WAV, MP3, FLAC, OGG or M4A.
 - Added Embedder Settings below Audio Processing in Single and Batch Inference. Select ContentVec, Spin, Spin-v2, Chinese, Japanese or Korean HuBERT Base, or install a custom HuBERT from a .bin and .json pair.
 - Missing Spin and language HuBERT downloads start immediately when the updated program launches, before the interface loads. Each download is verified before installation.
+
+## 2.0.0
+
+- Added a Training Dashboard with epoch duration, cumulative steps, steps per second and loss charts.
+- Dashboard metrics load in the background. Switch tabs while they load and see progress, results or errors in Dashboard status.
+- Integrated TensorBoard inside the Training Dashboard, with local Start and Stop controls.
+- Added 12-second Dataset Checker previews from a chosen timestamp or just before the longest silence.
+- Added a copyable diagnostic report with GPU, CUDA, disk space, recent training errors and Windows 11 detection.
+- Added individual downloads for Spin, Spin-v2 and the Chinese, Japanese and Korean HuBERT embedders under Other. Removed automatic embedder downloads at startup.
+- Matched the Download embedders panel to the other categories and tightened category spacing.
+- Renamed Reload UI to Restart Ilaria RVC.
+- Reduced the Windows NVIDIA package by leaving out optional embedders, UVR5 weights, the DirectML RMVPE file, ItaIla and the bundled RVC v1 pretrained weights.

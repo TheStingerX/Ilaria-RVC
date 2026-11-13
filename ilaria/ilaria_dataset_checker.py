@@ -68,6 +68,8 @@ class _Measurements:
         self.longest_clip_run = 0
         self.silent_run = 0
         self.longest_silence = 0
+        self.longest_silence_start = 0
+        self.analyzed_frames = 0
         self.long_silence_count = 0
         self.silent_frames = 0
         self.active_squares = 0.0
@@ -87,13 +89,16 @@ class _Measurements:
             if energy <= self.threshold:
                 self.silent_run += count
                 self.silent_frames += count
-                self.longest_silence = max(self.longest_silence, self.silent_run)
+                if self.silent_run > self.longest_silence:
+                    self.longest_silence = self.silent_run
+                    self.longest_silence_start = self.analyzed_frames + count - self.silent_run
             else:
                 if self.silent_run >= self.min_silence_frames:
                     self.long_silence_count += 1
                 self.silent_run = 0
                 self.active_squares += float(block.sum())
                 self.active_samples += block.size
+            self.analyzed_frames += count
 
     def add(self, data):
         data = np.asarray(data, dtype=np.float32)
@@ -142,6 +147,7 @@ class _Measurements:
             "channels": self.channels,
             "peak_dbfs": _db(self.peak),
             "active_rms_dbfs": _db(rms),
+            "longest_silence_start": self.longest_silence_start / self.sample_rate,
             "longest_silence_seconds": self.longest_silence / self.sample_rate,
             "long_silence_count": self.long_silence_count,
             "silence_fraction": self.silent_frames / self.frames,
@@ -310,7 +316,7 @@ def _report(results, silence_db, min_silence_seconds, volume_tolerance_db, ignor
     return "\n".join(lines)
 
 
-def check_dataset(dataset_path, silence_db=-45.0, min_silence_seconds=2.0, volume_tolerance_db=6.0, root=None):
+def check_dataset(dataset_path, silence_db=-45.0, min_silence_seconds=2.0, volume_tolerance_db=6.0, root=None, on_complete=None):
     """Yield (one-line percentage status, Markdown report) for Gradio."""
     try:
         silence_db = float(silence_db)
@@ -339,7 +345,37 @@ def check_dataset(dataset_path, silence_db=-45.0, min_silence_seconds=2.0, volum
             if index < len(files):
                 yield "%.1f%% | Checked %s (%s/%s)" % (index / len(files) * 100.0, path.name, index, len(files)), "Checked %s of %s recordings. Full results appear when the check finishes." % (index, len(files))
         report = _report(results, silence_db, min_silence_seconds, volume_tolerance_db, ignored)
+        if on_complete is not None:
+            on_complete(folder, results)
         flagged = sum(bool(item["warnings"]) for item in results)
         yield "100.0%% | Dataset check done! %s file(s) checked; %s to review" % (len(files), flagged), report
     except Exception as error:
         yield "Dataset check stopped: " + str(error), "No source files have been changed."
+
+
+def preview_recording(root, scan, name, offset, around_silence):
+    if not scan or not name or name not in scan["results"]:
+        return "Run Check dataset and choose a recording first.", None
+    folder = Path(scan["folder"])
+    path = folder / name
+    if path.resolve().parent != folder.resolve() or not path.is_file():
+        return "Recording unavailable.", None
+    item = scan["results"][name]
+    if "duration_seconds" not in item:
+        return "The checker could not decode this recording.", None
+    if around_silence and item["longest_silence_seconds"] > 0:
+        offset = max(0, item["longest_silence_start"] - 1)
+    offset = max(0, min(float(offset), item["duration_seconds"] - 0.1))
+    try:
+        result = subprocess.run(
+            [_binary("ffmpeg", root), "-nostdin", "-v", "error", "-ss", str(offset), "-i", str(path),
+             "-t", "12", "-vn", "-ac", "1", "-ar", "24000", "-f", "s16le", "pipe:1"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30, check=True,
+            **_hidden_process_options(),
+        )
+        samples = np.frombuffer(result.stdout, dtype="<i2").copy()
+        if not len(samples):
+            return "No audio decoded at this position.", None
+        return f"Playing {offset:.2f}s to {offset + len(samples) / 24000:.2f}s.", (24000, samples)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return "Could not decode this preview.", None
