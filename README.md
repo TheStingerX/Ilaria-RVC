@@ -3,7 +3,7 @@
 Ilaria RVC is a Windows voice conversion and training app based on Mainline RVC.
 This repository contains the source for version **2.0.0**.
 
-## Features added from Mainline RVC
+## Features added since Mainline RVC
 
 ### Inference and text to speech
 
