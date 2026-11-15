@@ -195,3 +195,11 @@ Model library
 - Added the Ilaria RVC website button next to Ko-Fi.
 - Added live training metrics and charts for the active model. When training is idle, select a Model Name to inspect recorded metrics.
 - Fixed embedded TensorBoard startup so it waits for scalar data and refreshes charts automatically. Training writes an initial event and flushes metrics as they are recorded.
+
+## 2.1.1
+
+- Added a heart-styled Ilaria Docs button next to the Ilaria RVC website link.
+
+## 2.1.2
+
+- Standardized the header buttons as Ilaria's Ko-Fi Shop, Ilaria's RVC Website, and Ilaria's Docs.

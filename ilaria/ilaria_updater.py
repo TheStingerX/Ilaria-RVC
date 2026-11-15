@@ -33,7 +33,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 import uuid
 import zipfile
 
-CURRENT_VERSION = '2.1.0'
+CURRENT_VERSION = '2.1.2'
 MANIFEST_URL = 'https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/version.json'
 LEGACY_MANAGED_FILES = (
     'ILARIA_RVC.py', 'ILARIA_RVC.bat',
@@ -60,8 +60,8 @@ class UpdaterError(ValueError):
 
 
 def version_tuple(value):
-    if not isinstance(value, str) or not re.fullmatch(r'v?[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}', value):
-        raise UpdaterError('Versions must use three numbers, for example 1.2.0.')
+    if not isinstance(value, str) or not re.fullmatch(r'v?[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}(?:\.[0-9]{1,6})?', value):
+        raise UpdaterError('Versions must use three or four numbers, for example 1.2.0.')
     result = tuple(int(part) for part in value.lstrip('v').split('.'))
     if any(part > 999999 for part in result):
         raise UpdaterError('The release version is invalid.')

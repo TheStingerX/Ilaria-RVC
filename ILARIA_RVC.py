@@ -1778,7 +1778,10 @@ ILARIA_HEADER = """
         💖 Ilaria's Ko-Fi Shop <span aria-hidden="true">&#8599;&#xFE0E;</span>
       </a>
       <a class="ilaria-shop" href="https://ilariarvc.shop/" target="_blank" rel="noopener noreferrer">
-        💖 Ilaria RVC Website <span aria-hidden="true">&#8599;&#xFE0E;</span>
+        💖 Ilaria's RVC Website <span aria-hidden="true">&#8599;&#xFE0E;</span>
+      </a>
+      <a class="ilaria-shop" href="https://docs.ilariarvc.shop/" target="_blank" rel="noopener noreferrer">
+        💖 Ilaria's Docs <span aria-hidden="true">&#8599;&#xFE0E;</span>
       </a>
     </div>
   </div>
