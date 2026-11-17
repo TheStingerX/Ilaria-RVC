@@ -2069,6 +2069,8 @@ WAVEFORM_JS = r"""
 """
 
 ILARIARVC_CSS = """
+/* The palette is defined below. Disable browser-generated dark colors. */
+.gradio-container { color-scheme: only light; }
 .gradio-container,
 .gradio-container .container {
     background: #53355C !important;
