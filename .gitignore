@@ -9,6 +9,8 @@ __pycache__/
 .vscode/
 
 /runtime/
+/runtime-cu128/
+/.runtime-cu128-build-*/
 /ffmpeg.exe
 /ffprobe.exe
 /TEMP/

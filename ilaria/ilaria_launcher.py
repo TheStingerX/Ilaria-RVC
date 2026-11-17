@@ -158,6 +158,12 @@ def run(root, arguments, python_executable=None):
         migration = layout_state(root)
         restarted = ((root / "ilaria/ilaria_release_payload.py").is_file()
                      or bool(migration and migration["phase"] == "pending"))
+        if os.name == 'nt':
+            from ilaria_install_rtx50 import ensure_runtime
+            cuda128_python = ensure_runtime(root)
+            if cuda128_python is not None:
+                python_executable = str(cuda128_python)
+                os.environ['USE_LIBUV'] = '0'
         suppress_browser = False
         while True:
             options = list(arguments)
@@ -217,7 +223,7 @@ def run(root, arguments, python_executable=None):
 
 if __name__ == '__main__':
     try:
-        raise SystemExit(run(Path(__file__).resolve().parent.parent if Path(__file__).resolve().parent.name == 'ilaria' else Path(__file__).resolve().parent, sys.argv[1:]))
+        raise SystemExit(run(Path(__file__).resolve().parent.parent if Path(__file__).resolve().parent.name == 'ilaria' else Path(__file__).resolve().parent, sys.argv[1:], python_executable=sys.executable))
     except Exception as error:
         print('Launcher: ' + str(error), flush=True)
         raise SystemExit(1)

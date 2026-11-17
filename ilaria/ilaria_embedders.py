@@ -50,12 +50,23 @@ def ensure_embedder(root, name):
             if temporary.exists(): temporary.unlink()
 
 
-def load_embedder(root, name='contentvec', device='cpu', half=False):
+def load_fairseq_hubert(path):
+    from contextlib import nullcontext
     from fairseq import checkpoint_utils
+    from fairseq.data import Dictionary
+    import torch
+
+    # PyTorch 2.6+ loads weights only by default. ContentVec stores a Dictionary.
+    safe_globals = getattr(torch.serialization, "safe_globals", None)
+    with safe_globals([Dictionary]) if safe_globals else nullcontext():
+        return checkpoint_utils.load_model_ensemble_and_task([str(path)], suffix="")
+
+
+def load_embedder(root, name='contentvec', device='cpu', half=False):
     import torch
     root = Path(root)
     for _ in ensure_embedder(root, name): pass
-    models, cfg, task = checkpoint_utils.load_model_ensemble_and_task([str(root/'assets/hubert/hubert_base.pt')], suffix='')
+    models, cfg, task = load_fairseq_hubert(root / 'assets/hubert/hubert_base.pt')
     model = models[0]
     if name == 'spin-v2':
         checkpoint = torch.load(str(root/'assets/hubert/spin-v2.pt'), map_location='cpu', weights_only=True)

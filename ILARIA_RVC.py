@@ -1926,6 +1926,15 @@ WAVEFORM_JS = r"""
         plot.append(defs, base, progress, playhead);
         track.append(plot, seek);
         time.append(play, elapsed, duration);
+        const volumeLabel = element("label", "ilaria-waveform-volume");
+        volumeLabel.append("Volume");
+        const volume = document.createElement("input");
+        volume.type = "range";
+        volume.min = "0";
+        volume.max = "100";
+        volume.step = "1";
+        volumeLabel.append(volume);
+        time.append(volumeLabel);
         if (!audio.closest("#tts-source-audio")) time.append(save);
         panel.append(track, time);
 
@@ -1953,6 +1962,17 @@ WAVEFORM_JS = r"""
         let frame = 0;
         const playbackEvents = new AbortController();
         const options = {signal: playbackEvents.signal};
+        function updateVolume() {
+            volume.value = String(audio.muted ? 0 : Math.round(audio.volume * 100));
+            volume.setAttribute("aria-valuetext", volume.value + "%");
+        }
+        volume.addEventListener("input", () => {
+            audio.volume = Number(volume.value) / 100;
+            audio.muted = false;
+            updateVolume();
+        }, options);
+        audio.addEventListener("volumechange", updateVolume, options);
+        updateVolume();
         function animate() {
             update();
             frame = audio.paused || audio.ended ? 0 : requestAnimationFrame(animate);
@@ -2776,6 +2796,17 @@ ILARIARVC_CSS += r"""
     font-size: 12px;
     font-variant-numeric: tabular-nums;
     line-height: 1.3;
+}
+.ilaria-waveform-time { flex-wrap: wrap; }
+.ilaria-waveform-volume {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.ilaria-waveform-volume input[type="range"] {
+    width: 5rem;
+    margin: 0;
+    accent-color: #ffc0cb;
 }
 audio.ilaria-waveform-native {
     display: none !important;

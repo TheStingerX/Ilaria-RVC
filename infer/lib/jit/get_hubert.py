@@ -1,7 +1,7 @@
 import math
 import random
 from typing import Optional, Tuple
-from fairseq.checkpoint_utils import load_model_ensemble_and_task
+from ilaria_embedders import load_fairseq_hubert
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -266,10 +266,7 @@ def apply_mask(self, x, padding_mask, target_list):
 def get_hubert_model(
     model_path="assets/hubert/hubert_base.pt", device=torch.device("cpu")
 ):
-    models, _, _ = load_model_ensemble_and_task(
-        [model_path],
-        suffix="",
-    )
+    models, _, _ = load_fairseq_hubert(model_path)
     hubert_model = models[0]
     hubert_model = hubert_model.to(device)
 

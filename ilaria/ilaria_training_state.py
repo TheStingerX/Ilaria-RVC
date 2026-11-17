@@ -199,7 +199,15 @@ def load_training_state(model_dir, nets, optims, expected_signature):
         path = directory / name
         if not path.is_file() or path.is_symlink() or _sha256(path) != manifest["files"][name]:
             raise ValueError("Training checkpoint is missing or damaged: " + name)
-    state = torch.load(str(directory / "training.pt"), map_location="cpu")
+    # Old managed checkpoints include the NumPy RNG tuple. Scope the allowlist
+    # to this hash-verified state file, and keep weights-only loading.
+    safe_globals = getattr(torch.serialization, "safe_globals", None)
+    if safe_globals is None:
+        state = torch.load(str(directory / "training.pt"), map_location="cpu", weights_only=False)
+    else:
+        rng_globals = [np.core.multiarray._reconstruct, np.ndarray, np.dtype, type(np.dtype("uint32"))]
+        with safe_globals(rng_globals):
+            state = torch.load(str(directory / "training.pt"), map_location="cpu", weights_only=True)
     if state.get("schema") != 1 or state.get("signature") != expected_signature:
         raise ValueError("Saved training does not match these settings/data. Keep the original dataset, batch size, GPU count, sample rate and model architecture, or use a new Model Name.")
     epoch, steps = state.get("completed_epoch"), state.get("global_step")

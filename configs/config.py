@@ -29,6 +29,17 @@ version_config_list = [
 ]
 
 
+def require_supported_blackwell(index):
+    """Fail early for RTX 50 GPUs with the legacy CUDA 11.8 runtime."""
+    if torch.cuda.get_device_capability(index) == (12, 0):
+        cuda = torch.version.cuda
+        if not cuda or tuple(map(int, cuda.split(".")[:2])) < (12, 8) or "sm_120" not in torch.cuda.get_arch_list():
+            raise RuntimeError(
+                "This NVIDIA RTX 50 GPU requires the CUDA 12.8 runtime with sm_120 support. "
+                "On Windows, run INSTALL_RTX50_RUNTIME.bat and start ILARIA_RVC_RTX50.bat."
+            )
+
+
 def singleton_variable(func):
     def wrapper(*args, **kwargs):
         if not wrapper.instance:
@@ -140,6 +151,7 @@ class Config:
                 self.is_half = True
             i_device = int(self.device.split(":")[-1])
             self.gpu_name = torch.cuda.get_device_name(i_device)
+            require_supported_blackwell(i_device)
             if (
                 ("16" in self.gpu_name and "V100" not in self.gpu_name.upper())
                 or "P40" in self.gpu_name.upper()

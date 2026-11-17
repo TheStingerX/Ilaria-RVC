@@ -128,7 +128,11 @@ def frozen_discriminator(model):
 
 
 def main():
+    from configs.config import require_supported_blackwell
+
     n_gpus = torch.cuda.device_count()
+    for index in range(n_gpus):
+        require_supported_blackwell(index)
 
     if torch.cuda.is_available() == False and torch.backends.mps.is_available() == True:
         n_gpus = 1

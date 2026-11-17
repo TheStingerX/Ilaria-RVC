@@ -203,3 +203,11 @@ Model library
 ## 2.1.2
 
 - Standardized the header buttons as Ilaria's Ko-Fi Shop, Ilaria's RVC Website, and Ilaria's Docs.
+
+## 2.2.0
+
+- Added NVIDIA GeForce RTX 50-series (Blackwell) support for inference and training on Windows using PyTorch 2.7.1 and CUDA 12.8.
+- The existing launcher detects Blackwell and prepares the compatible runtime on first launch. This one-time setup needs internet access and free disk space.
+- The launcher verifies CUDA forward and backward execution before using the new runtime. Existing installations on other GPUs keep their current runtime.
+- Updated ContentVec loading, training checkpoint resume and STFT handling for the newer PyTorch runtime.
+- Added a playback volume slider to the shared waveform player for audio inputs, results and previews.

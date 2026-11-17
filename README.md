@@ -50,6 +50,12 @@ Extract the Windows package, then open `ILARIA_RVC.bat` for normal use or
 `ILARIA_RVC_LOGS.bat` to see the console. The default address is `http://127.0.0.1:6969`.
 In an existing installation, open **Other → Update Ilaria RVC** to check for updates.
 
+## Windows with NVIDIA RTX 50-series GPUs
+
+On Windows, Ilaria RVC 2.2 detects NVIDIA GeForce RTX 50-series GPUs when you start the regular `ILARIA_RVC.bat` or `ILARIA_RVC_LOGS.bat`. The first launch needs Internet and space for the CUDA 12.8 runtime and its downloads. Setup checks CUDA on the detected GPU before opening the Web UI. If setup fails, see `rtx50-runtime-install.log` in the Ilaria RVC folder.
+
+The compatible runtime is reused on subsequent launches. Installations without a Blackwell GPU continue using their bundled runtime.
+
 ## Work on the source
 
 For a Windows development setup, start with a clean installation updated to 2.1.2.
