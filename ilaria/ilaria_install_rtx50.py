@@ -75,6 +75,18 @@ def ensure_runtime(root):
     return python
 
 
+def portable_runtime_ignore(directory, names):
+    ignored = {name for name in names if name == "__pycache__"}
+    if Path(directory).name.lower() == "site-packages":
+        replaced = {"torch", "torchgen", "functorch", "torchaudio", "torchvision",
+                    "torch_directml", "torchvision.libs", "torchaudio.libs"}
+        ignored.update(name for name in names if name.lower() in replaced or (
+            name.lower().endswith(".dist-info")
+            and name.lower().partition("-")[0] in replaced
+        ))
+    return ignored
+
+
 def install(root):
     source = root / "runtime"
     target = root / "runtime-cu128"
@@ -87,13 +99,12 @@ def install(root):
     with TemporaryDirectory(prefix=".runtime-cu128-build-", dir=root) as temporary:
         candidate = Path(temporary) / "runtime"
         print("Copying the portable runtime...", flush=True)
-        shutil.copytree(source, candidate, ignore=shutil.ignore_patterns("__pycache__"))
+        shutil.copytree(source, candidate, ignore=portable_runtime_ignore)
         python = str(candidate / "python.exe")
-        # The cloned DirectML wheel depends on the old Torch build.
-        subprocess.run([python, "-m", "pip", "uninstall", "-y", "torch-directml"],
-                       cwd=root, check=True)
+        print("Downloading and installing CUDA 12.8 packages...", flush=True)
         subprocess.run(
-            [python, "-m", "pip", "--disable-pip-version-check", "--isolated", "install",
+            [python, "-m", "pip", "--disable-pip-version-check", "--isolated", "install", "--no-cache-dir",
+             "--progress-bar", "on",
              "--index-url", INDEX, "--extra-index-url", "https://pypi.org/simple", *PACKAGES],
             cwd=root, check=True,
         )
