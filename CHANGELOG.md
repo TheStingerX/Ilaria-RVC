@@ -210,4 +210,7 @@ Model library
 - The existing launcher detects Blackwell and prepares the compatible runtime on first launch. This one-time setup needs internet access and free disk space.
 - The launcher verifies CUDA forward and backward execution before using the new runtime. Existing installations on other GPUs keep their current runtime.
 - Updated ContentVec loading, training checkpoint resume and STFT handling for the newer PyTorch runtime.
+
+## 2.2.1
+
 - Added a playback volume slider to the shared waveform player for audio inputs, results and previews.
