@@ -2275,7 +2275,8 @@ ILARIARVC_CSS = """
 .gradio-container #ilaria-main-tabs input[type="range"] {
     accent-color: #FFC0CB;
 }
-.gradio-container #ilaria-main-tabs input[type="range"]:not(.ilaria-waveform-seek) {
+.gradio-container #ilaria-main-tabs input[type="range"]:not(.ilaria-waveform-seek),
+.gradio-container .ilaria-waveform-volume input[type="range"] {
     appearance: none !important;
     -webkit-appearance: none !important;
     background: linear-gradient(90deg, #ffc0cb, #d8b4fe) !important;
@@ -2284,7 +2285,8 @@ ILARIARVC_CSS = """
     height: 8px !important;
     cursor: pointer;
 }
-.gradio-container #ilaria-main-tabs input[type="range"]:not(.ilaria-waveform-seek)::-webkit-slider-thumb {
+.gradio-container #ilaria-main-tabs input[type="range"]:not(.ilaria-waveform-seek)::-webkit-slider-thumb,
+.gradio-container .ilaria-waveform-volume input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
     width: 18px;
@@ -2293,14 +2295,16 @@ ILARIARVC_CSS = """
     border-radius: 50%;
     background: #fff0f5;
 }
-.gradio-container #ilaria-main-tabs input[type="range"]:not(.ilaria-waveform-seek)::-moz-range-thumb {
+.gradio-container #ilaria-main-tabs input[type="range"]:not(.ilaria-waveform-seek)::-moz-range-thumb,
+.gradio-container .ilaria-waveform-volume input[type="range"]::-moz-range-thumb {
     width: 14px;
     height: 14px;
     border: 2px solid #62416b;
     border-radius: 50%;
     background: #fff0f5;
 }
-.gradio-container #ilaria-main-tabs input[type="range"]:not(.ilaria-waveform-seek):focus-visible {
+.gradio-container #ilaria-main-tabs input[type="range"]:not(.ilaria-waveform-seek):focus-visible,
+.gradio-container .ilaria-waveform-volume input[type="range"]:focus-visible {
     outline: 2px solid #fff0f5;
     outline-offset: 4px;
 }
