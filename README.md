@@ -54,11 +54,14 @@ For **2.2.2**, close your 2.2.1 installation, extract the patch into the same fo
 
 ## Windows CUDA 12.8 runtime
 
-The Windows build uses a single bundled PyTorch 2.7.1+cu128 runtime for NVIDIA GPUs. Extract the full package to a new folder and run `ILARIA_RVC.bat` or `ILARIA_RVC_LOGS.bat`.
+The Windows build uses a single bundled Python 3.10 and PyTorch 2.10.0+cu128 runtime for NVIDIA GPUs. Extract the full package to a new folder and run `ILARIA_RVC.bat` or `ILARIA_RVC_LOGS.bat`.
 
-On PCs with only Maxwell, Pascal or Volta GPUs, the launcher uses PyTorch 2.0.0 with CUDA 11.8. On first use it downloads and verifies that runtime in `runtime-cu118`. Installation progress is recorded in `cuda118-runtime-install.log`.
+On PCs with only Maxwell, Pascal or Volta GPUs, the launcher uses PyTorch 2.10.0 with CUDA 12.6. On first use it downloads and verifies that runtime in `runtime-cu126`. Installation progress is recorded in `cu126-runtime-install.log`.
 
-To build a runtime for packaging, use the Windows Python 3.9 portable interpreter to run `ilaria/ilaria_install_rtx50.py <release-folder>`. It writes `runtime` into the release folder after checking CUDA forward and backward execution. Package that runtime with the program and assets.
+
+## Rebuild the Windows runtime with PyTorch 2.10
+
+In an existing Windows installation with the updated launcher and `uv` available in PowerShell, run `./Build-WindowsRuntime.ps1` for CUDA 12.8. For Maxwell or Pascal, use `./Build-WindowsRuntime.ps1 -Backend cu126`. The script creates a Python 3.10 environment and tests GPU operations and ContentVec before enabling it. Launch Ilaria RVC normally with `ILARIA_RVC.bat`.
 
 ## Work on the source
 

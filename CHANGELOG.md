@@ -224,6 +224,10 @@ Model library
 ## 2.2.2
 
 - Explicitly enabled PyTorch's restricted checkpoint loader for voice models, model tools, ONNX export, and training model weights.
-- The bundled PyTorch versions are unchanged. Their restricted loaders have known vulnerabilities, so continue to use checkpoints from trusted sources.
+- The small manual patch updates the application files. Install the refreshed full ZIP to get the updated PyTorch runtime as well.
 - For a fresh Windows installation, download the full 2.2.2 ZIP, extract it to a new folder, and run `ILARIA_RVC.bat`. [Download the full 2.2.2 package](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.2.2/ILARIA_RVC-2.2.2.zip?download=true)
 - To update, close Ilaria RVC 2.2.1, extract the patch into its folder, accept file replacement, and reopen Ilaria RVC. [Download the 2.2.2 patch](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.2.2/ILARIA_RVC-2.2.2-manual.zip?download=true)
+
+- The refreshed Windows ZIP bundles Python 3.10 and PyTorch 2.10.0 with CUDA 12.8, addressing the known restricted-loader execution vulnerability. Legacy NVIDIA GPUs can download a CUDA 12.6 runtime.
+- Fixed PyAV audio decoding and WAV export with the updated runtime. Preprocessing now reports progress while writing segments within a file.
+- The Kaggle notebook pins PyTorch and TorchAudio 2.10.0 with CUDA 12.8.

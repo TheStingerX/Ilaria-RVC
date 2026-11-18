@@ -7,14 +7,16 @@ from io import BytesIO
 
 
 def wav2(i, o, format):
-    inp = av.open(i, "rb")
+    inp = av.open(i, "r")
     if format == "m4a":
         format = "mp4"
-    out = av.open(o, "wb", format=format)
+    out = av.open(o, "w", format=format)
     if format == "ogg":
         format = "libvorbis"
     if format == "mp4":
         format = "aac"
+    if format == "wav":
+        format = "pcm_s16le"
 
     ostream = out.add_stream(format)
 
@@ -30,19 +32,21 @@ def wav2(i, o, format):
 
 
 def audio2(i, o, format, sr):
-    inp = av.open(i, "rb")
-    out = av.open(o, "wb", format=format)
+    inp = av.open(i, "r")
+    out = av.open(o, "w", format=format)
     if format == "ogg":
         format = "libvorbis"
     if format == "f32le":
         format = "pcm_f32le"
 
-    ostream = out.add_stream(format, channels=1)
-    ostream.sample_rate = sr
+    ostream = out.add_stream(format, rate=sr, layout="mono")
 
     for frame in inp.decode(audio=0):
         for p in ostream.encode(frame):
             out.mux(p)
+
+    for packet in ostream.encode(None):
+        out.mux(packet)
 
     out.close()
     inp.close()

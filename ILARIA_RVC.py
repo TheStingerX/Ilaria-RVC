@@ -605,8 +605,14 @@ def if_done_multi(done, ps):
 
 def preprocess_percentage(log, dataset):
     total = len(os.listdir(dataset))
-    completed = len({line.split("->", 1)[0] for line in log.splitlines() if "->Suc." in line})
-    return min(99.9, completed / total * 100) if total else 0.0
+    progress = {}
+    for line in log.splitlines():
+        path, _, status = line.partition("->")
+        if status == "Suc.":
+            progress[path] = 100.0
+        elif status.startswith("Progress:"):
+            progress[path] = float(status.partition(":")[2].split(" | ", 1)[0])
+    return min(99.9, sum(progress.values()) / total) if total else 0.0
 
 
 def feature_percentage(exp_dir, version, with_pitch):
@@ -646,8 +652,13 @@ def compact_workflow_log(log, stage, finished=False, successful=True, percentage
         if stage == "preprocess":
             if "->Suc." in line:
                 status = "Pre-Process: " + line.split("->", 1)[0].replace("\\", "/").rsplit("/", 1)[-1]
+            elif "->Progress:" in line:
+                path, _, detail = line.partition("->Progress:")
+                fraction, _, action = detail.partition(" | ")
+                filename = path.replace("\\", "/").rsplit("/", 1)[-1]
+                status = f"{action}: {filename} ({fraction}% of file)"
             elif line == "start preprocess":
-                status = line
+                status = "Pre-Process: scanning dataset..."
         elif stage == "f0":
             match = re.search(r"f0ing,now-(\d+),all-(\d+),-(.+)", line)
             if match:

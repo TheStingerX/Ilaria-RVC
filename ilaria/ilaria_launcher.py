@@ -165,6 +165,11 @@ def run(root, arguments, python_executable=None):
         suppress_browser = False
         while True:
             options = list(arguments)
+            if os.name == 'nt':
+                if '--pycmd' in options:
+                    index = options.index('--pycmd')
+                    del options[index:index + 2]
+                options.extend(['--pycmd', python_executable])
             if suppress_browser and '--noautoopen' not in options:
                 options.append('--noautoopen')
             environment = os.environ.copy()

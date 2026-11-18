@@ -8,7 +8,9 @@ import sys
 from tempfile import TemporaryDirectory
 
 
+MODERN_CUDA = ("torch==2.10.0+cu128", "torchaudio==2.10.0+cu128", "torchvision==0.25.0+cu128")
 PACKAGES = {
+    "cu126": tuple(package.replace("cu128", "cu126") for package in MODERN_CUDA),
     "cu128": ("torch==2.7.1+cu128", "torchaudio==2.7.1+cu128", "torchvision==0.22.1+cu128"),
     "cu118": ("torch==2.0.0+cu118", "torchaudio==2.0.1+cu118", "torchvision==0.15.1+cu118"),
 }
@@ -65,25 +67,33 @@ def runtime_has_torch(runtime, backend):
 
 
 def select_windows_runtime(root):
+    upgraded = root / "runtime-py310"
+    updated_python = upgraded / "Scripts" / "python.exe"
+    if updated_python.is_file() and (upgraded / ".cuda-verified").is_file():
+        return str(updated_python)
     bundled = root / "runtime"
-    backend = "cu118" if legacy_nvidia_detected() else "cu128"
+    legacy_gpu = legacy_nvidia_detected()
+    modern = (bundled / "Lib" / "site-packages" / "torch-2.10.0+cu128.dist-info").is_dir()
+    if modern and not legacy_gpu:
+        return str(bundled / "python.exe")
+    backend = ("cu126" if modern else "cu118") if legacy_gpu else "cu128"
     if runtime_has_torch(bundled, backend):
         return str(bundled / "python.exe")
     if backend == "cu128":
         raise RuntimeError("Extract the full Windows CUDA 12.8 package to a new folder.")
 
-    legacy = root / "runtime-cu118"
+    legacy = root / f"runtime-{backend}"
     if not runtime_has_torch(legacy, backend):
-        log_path = root / "cuda118-runtime-install.log"
-        print("Preparing CUDA 11.8 for your NVIDIA GPU. See", log_path, flush=True)
+        log_path = root / f"{backend}-runtime-install.log"
+        print(f"Preparing {backend} for your NVIDIA GPU. See", log_path, flush=True)
         try:
             with log_path.open("w", encoding="utf-8") as log:
                 subprocess.run(
-                    [sys.executable, "-u", str(Path(__file__).resolve()), "--legacy"],
+                    [sys.executable, "-u", str(Path(__file__).resolve()), "--legacy", backend],
                     cwd=root, stdout=log, stderr=subprocess.STDOUT, check=True,
                 )
         except (OSError, subprocess.CalledProcessError) as error:
-            raise RuntimeError(f"CUDA 11.8 setup failed. See {log_path}.") from error
+            raise RuntimeError(f"{backend} setup failed. See {log_path}.") from error
     return str(legacy / "python.exe")
 
 
@@ -100,10 +110,10 @@ def portable_runtime_ignore(directory, names):
 
 
 def build_runtime(root, target, backend="cu128"):
-    cuda_version = {"cu128": "12.8", "cu118": "11.8"}[backend]
+    cuda_version = {"cu128": "12.8", "cu126": "12.6", "cu118": "11.8"}[backend]
     source = root / "runtime"
-    if os.name != "nt" or sys.version_info[:2] != (3, 9):
-        raise RuntimeError("The CUDA runtime build requires the Windows Python 3.9 portable installation.")
+    if os.name != "nt" or sys.version_info[:2] != ((3, 10) if backend == "cu126" else (3, 9)):
+        raise RuntimeError("The CUDA runtime build requires the corresponding Windows portable Python runtime.")
     if target.exists():
         raise RuntimeError("The target runtime already exists. Choose an empty release folder.")
     if not (source / "python.exe").is_file():
@@ -134,11 +144,11 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Build a CUDA 12.8 runtime for a clean Windows release.")
     parser.add_argument("release_folder", type=Path, nargs="?")
-    parser.add_argument("--legacy", action="store_true")
+    parser.add_argument("--legacy", nargs="?", const="cu118", choices=("cu118", "cu126"))
     args = parser.parse_args()
     root = Path(__file__).resolve().parent.parent
     if args.legacy:
-        build_runtime(root, root / "runtime-cu118", "cu118")
+        build_runtime(root, root / f"runtime-{args.legacy}", args.legacy)
     else:
         if args.release_folder is None:
             parser.error("release_folder is required")

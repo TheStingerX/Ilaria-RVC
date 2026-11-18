@@ -84,13 +84,18 @@ class PreProcess:
 
     def pipeline(self, path, idx0):
         try:
+            println(f"{path}->Progress:0.0 | Reading audio")
             audio = load_audio(path, self.sr)
             # zero phased digital filter cause pre-ringing noise...
             # audio = signal.filtfilt(self.bh, self.ah, audio)
             audio = signal.lfilter(self.bh, self.ah, audio)
 
             idx1 = 0
-            for audio in self.slicer.slice(audio):
+            slices = self.slicer.slice(audio)
+            total_samples = max(1, sum(len(chunk) for chunk in slices))
+            completed_samples = 0
+            println(f"{path}->Progress:1.0 | Writing segments")
+            for audio in slices:
                 i = 0
                 while 1:
                     start = int(self.sr * (self.per - self.overlap) * i)
@@ -99,11 +104,15 @@ class PreProcess:
                         tmp_audio = audio[start : start + int(self.per * self.sr)]
                         self.norm_write(tmp_audio, idx0, idx1)
                         idx1 += 1
+                        if idx1 % 16 == 0:
+                            progress = min(99.9, 1 + 99 * (completed_samples + start) / total_samples)
+                            println(f"{path}->Progress:{progress:.1f} | Writing segments")
                     else:
                         tmp_audio = audio[start:]
                         idx1 += 1
                         break
                 self.norm_write(tmp_audio, idx0, idx1)
+                completed_samples += len(audio)
             println("%s->Suc." % path)
         except:
             println("%s->%s" % (path, traceback.format_exc()))
