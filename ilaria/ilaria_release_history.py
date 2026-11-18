@@ -1,6 +1,7 @@
 """Offline release notes, newest first."""
 
 RELEASE_HISTORY = (
+    ("2.2.2", "- Explicitly enable restricted weights-only loading for voice models and other PyTorch checkpoints."),
     ("2.2.1", '- Added a playback volume slider to the shared waveform player for audio inputs, results and previews.\n- The updated Windows package bundles PyTorch 2.7.1 with CUDA 12.8. RTX 50 GPUs can use the bundled runtime immediately.\n- PCs with only Maxwell, Pascal or Volta GPUs download and verify the previous CUDA 11.8 runtime on first use.'),
     ("2.2.0", '- Added NVIDIA GeForce RTX 50-series (Blackwell) support for inference and training on Windows using PyTorch 2.7.1 and CUDA 12.8.\n- The existing launcher detects Blackwell and prepares the compatible runtime on first launch. This one-time setup needs internet access and free disk space.\n- The launcher verifies CUDA forward and backward execution before using the new runtime. Existing installations on other GPUs keep their current runtime.\n- Updated ContentVec loading, training checkpoint resume and STFT handling for the newer PyTorch runtime.'),
     ('2.1.2', "- Standardized the header buttons as Ilaria's Ko-Fi Shop, Ilaria's RVC Website, and Ilaria's Docs."),

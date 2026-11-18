@@ -217,7 +217,7 @@ def load_training_state(model_dir, nets, optims, expected_signature):
     if (type(epoch) is not int or type(steps) is not int or epoch < 0 or steps < 0
             or epoch != manifest.get("completed_epoch") or steps != manifest.get("global_step")):
         raise ValueError("Saved epoch/step metadata is inconsistent.")
-    checkpoints = [torch.load(str(directory / name), map_location="cpu") for name in names[:2]]
+    checkpoints = [torch.load(str(directory / name), map_location="cpu", weights_only=True) for name in names[:2]]
     for checkpoint, net in zip(checkpoints, nets):
         if checkpoint.get("iteration") != epoch or checkpoint.get("global_step") != steps:
             raise ValueError("Generator and discriminator checkpoint counts do not match.")

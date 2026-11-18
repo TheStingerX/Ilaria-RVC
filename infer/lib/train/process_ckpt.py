@@ -51,7 +51,7 @@ def savee(ckpt, sr, if_f0, name, epoch, version, hps):
 
 def show_info(path):
     try:
-        a = torch.load(path, map_location="cpu")
+        a = torch.load(path, map_location="cpu", weights_only=True)
         return "模型信息:%s\n采样率:%s\n模型是否输入音高引导:%s\n版本:%s" % (
             a.get("info", "None"),
             a.get("sr", "None"),
@@ -64,7 +64,7 @@ def show_info(path):
 
 def extract_small_model(path, name, sr, if_f0, info, version):
     try:
-        ckpt = torch.load(path, map_location="cpu")
+        ckpt = torch.load(path, map_location="cpu", weights_only=True)
         if "model" in ckpt:
             ckpt = ckpt["model"]
         opt = OrderedDict()
@@ -195,7 +195,7 @@ def extract_small_model(path, name, sr, if_f0, info, version):
 
 def change_info(path, info, name):
     try:
-        ckpt = torch.load(path, map_location="cpu")
+        ckpt = torch.load(path, map_location="cpu", weights_only=True)
         ckpt["info"] = info
         if name == "":
             name = os.path.basename(path)
@@ -219,8 +219,8 @@ def merge(path1, path2, alpha1, sr, f0, info, name, version):
                 opt["weight"][key] = a[key]
             return opt
 
-        ckpt1 = torch.load(path1, map_location="cpu")
-        ckpt2 = torch.load(path2, map_location="cpu")
+        ckpt1 = torch.load(path1, map_location="cpu", weights_only=True)
+        ckpt2 = torch.load(path2, map_location="cpu", weights_only=True)
         cfg = ckpt1["config"]
         if "model" in ckpt1:
             ckpt1 = extract(ckpt1)
