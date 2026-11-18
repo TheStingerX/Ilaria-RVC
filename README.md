@@ -1,7 +1,7 @@
 # ♡ Ilaria RVC ♡
 
 Ilaria RVC is a Windows voice conversion and training app based on Mainline RVC.
-This repository contains the source for version **2.1.2**.
+This repository contains the source for version **2.3.0**.
 
 ## Features added since Mainline RVC
 
@@ -10,16 +10,16 @@ This repository contains the source for version **2.1.2**.
 - Drag and drop audio in **Single** and **Batch Inference**. Models are listed alphabetically, and the app looks up the matching index automatically. The pitch slider ranges from −24 to +24 semitones. Index Ratio starts at 0.
 - Export in **WAV, MP3, FLAC, OGG, or M4A**. Outputs use the selected model name, and conversion logs summarize the result.
 - **Audio Processing** includes Split Audio, Autotune, Proposed Pitch, Clean Audio, Formant Shifting, and Post-Process effects.
-- **Embedder Settings** supports ContentVec, Spin, Spin-v2, Chinese, Japanese and Korean HuBERT Base, and custom HuBERT embedders supplied as a .bin and .json pair. Download optional embedders individually from **Other**.
-- Pitch extraction includes **FCPE, Swift, Beatrice, and Parselmouth**, with RMVPE as the default. Available choices depend on the operation.
-- **TTS** accepts typed text or UTF-8 text files. Use Microsoft Edge online voices or installed Windows voices offline. Filter voices by language and adjust rate, volume, and source pitch where supported. Listen to the source speech and RVC conversion side by side.
+- **Embedder Settings** supports ContentVec, Spin, Spin-v2, Chinese, Japanese, Korean and Portuguese HuBERT Base, and custom HuBERT embedders supplied as a .bin and .json pair. Download optional embedders individually from **Other**.
+- Pitch extraction includes **FCPE, Swift, Beatrice, and Parselmouth**, with RMVPE as the default. RMVPE High Register adds controls for high singing notes. Available choices depend on the operation.
+- **TTS** accepts typed text or UTF-8 text files. Use Microsoft Edge online voices or installed Windows voices offline. ElevenLabs is available with your API key. Filter voices by language and adjust rate, volume, and source pitch where supported. Listen to the source speech and RVC conversion side by side.
 - Pink waveform players support playback, seeking, and keyboard controls for supported audio across inference, TTS, and training previews.
 
 ### Training and datasets
 
 - Numbered training workflow with collapsible settings, compact progress logs, cumulative steps, estimated finish time, and completion messages.
 - Train to an **epoch or exact total-step target**, with partial-epoch resume for step targets. **Stop and save** writes a resumable checkpoint. The persistent **Training Queue** can prepare and train multiple models with pause and retry controls.
-- Choose **FP32 or FP16**, ContentVec or Spin-v2, HiFi-GAN or RefineGAN, Auto/Faiss/KMeans index creation, and the number of silent training files. RefineGAN training supports RVC v2 at 32 kHz with pitch guidance.
+- Choose **FP32 or FP16**, ContentVec, Spin-v2 or a custom HuBERT embedder for RVC v2, HiFi-GAN, MRF HiFi-GAN or RefineGAN, Auto/Faiss/KMeans index creation, and the number of silent training files. RefineGAN training supports RVC v2 at 32 kHz with pitch guidance.
 - Select generator and discriminator pretrained weights together. The pretrained downloader includes a catalog of compatible variants with sample rates and downloads both weights in parallel.
 - Import dataset audio and ZIPs by drag and drop and manage imported datasets in the UI. All four training steps check for missing datasets. Training also checks sample-rate compatibility before reusing a model folder.
 - **Dataset Checker** flags long silences, possible clipping, unreadable files, and inconsistent levels. Listen to a 12-second preview at a chosen timestamp or near the longest silence.
@@ -50,7 +50,7 @@ Extract the Windows package, then open `ILARIA_RVC.bat` for normal use or
 `ILARIA_RVC_LOGS.bat` to see the console. The default address is `http://127.0.0.1:6969`.
 In an existing installation, open **Other → Update Ilaria RVC** to check for updates.
 
-For **2.2.2**, close your 2.2.1 installation, extract the patch into the same folder, accept file replacement, and reopen Ilaria RVC. [Download the 2.2.2 patch](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.2.2/ILARIA_RVC-2.2.2-manual.zip?download=true) · [Changelog](CHANGELOG.md)
+For a fresh Windows installation or an upgrade from 2.2.1 and earlier, use the [full NVIDIA Windows ZIP](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.3.0/ILARIA_RVC-2.3.0.zip?download=true). To update the refreshed 2.2.2 build, close Ilaria RVC, extract the [manual patch](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.3.0/ILARIA_RVC-2.3.0-manual.zip?download=true) into its installation folder, replace existing files, and reopen the app. · [Changelog](CHANGELOG.md)
 
 ## Windows CUDA 12.8 runtime
 

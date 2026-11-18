@@ -231,3 +231,13 @@ Model library
 - The refreshed Windows ZIP bundles Python 3.10 and PyTorch 2.10.0 with CUDA 12.8, addressing the known restricted-loader execution vulnerability. Legacy NVIDIA GPUs can download a CUDA 12.6 runtime.
 - Fixed PyAV audio decoding and WAV export with the updated runtime. Preprocessing now reports progress while writing segments within a file.
 - The Kaggle notebook pins PyTorch and TorchAudio 2.10.0 with CUDA 12.8.
+
+## 2.3.0
+
+- Added RMVPE High Register controls for high singing notes, with pitch modes, detection limits and an audio preview.
+- Added ElevenLabs to TTS, with an API key field and voice selection.
+- Added MRF HiFi-GAN for training and inference, plus compatible pretrained options in the download catalog.
+- Added Portuguese HuBERT Base as an optional inference embedder.
+- Added custom HuBERT upload and saving directly in Training for RVC v2. The new embedder is selected automatically and carried into the exported voice model.
+
+For a fresh Windows installation or an upgrade from 2.2.1 and earlier, use the [full NVIDIA Windows ZIP](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.3.0/ILARIA_RVC-2.3.0.zip?download=true). To update the refreshed 2.2.2 build, close Ilaria RVC, extract the [manual patch](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.3.0/ILARIA_RVC-2.3.0-manual.zip?download=true) into its installation folder, replace existing files, and reopen the app.

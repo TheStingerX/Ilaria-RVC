@@ -187,7 +187,15 @@ class Pipeline(object):
             f0 = f0[0].cpu().numpy()
         elif f0_method == "rmvpe":
             model = _get_rmvpe(self.device, self.is_half)
-            f0 = model.infer_from_audio(x, thred=0.03)
+            def estimate(audio):
+                return model.infer_from_audio(audio, thred=0.03)
+
+            f0 = estimate(x)
+            high_register = (inference_options or {}).get("rmvpe_high_register")
+            if high_register:
+                from ilaria_rmvpe_high_register import correct_high_register
+
+                f0 = correct_high_register(x, f0, estimate, *high_register)
             if "privateuseone" in str(self.device):
                 del model.model
 

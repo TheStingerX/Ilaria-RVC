@@ -141,7 +141,7 @@ class VC:
         self.net_g = apply_vocoder(self.net_g, selected_vocoder, self.version, self.if_f0, self.tgt_sr)
         del self.net_g.enc_q
 
-        self.net_g.load_state_dict(weights_for_runtime(self.cpt["weight"]), strict=selected_vocoder == "RefineGAN")
+        self.net_g.load_state_dict(weights_for_runtime(self.cpt["weight"]), strict=selected_vocoder != "HiFi-GAN")
         self.net_g.eval().to(self.config.device)
         if self.config.is_half:
             self.net_g = self.net_g.half()

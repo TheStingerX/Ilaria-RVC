@@ -93,11 +93,11 @@ def _pairs(root):
 
 
 def pretrain_choices(root, rate=None, pitch_guidance=None, version=None, vocoder=None):
-    choices = [SELECT, NONE] if vocoder == 'RefineGAN' else [AUTO, NONE]
+    choices = [SELECT, NONE] if vocoder in ('RefineGAN', 'MRF HiFi-GAN') else [AUTO, NONE]
     for label, pair in _pairs(root).items():
         stock = _stock_pair(pair[0])
         if stock:
-            if vocoder == 'RefineGAN':
+            if vocoder in ('RefineGAN', 'MRF HiFi-GAN'):
                 continue
             if version is not None and stock[0] != version:
                 continue

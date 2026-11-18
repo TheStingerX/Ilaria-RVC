@@ -97,14 +97,31 @@ def save_feature_embedder(folder, name):
 
 
 from ilaria_hubert_assets import (
-    INFERENCE_EMBEDDERS, custom_embedder_names, install_custom_embedder, inference_embedder_directory,
+    INFERENCE_EMBEDDERS, PORTUGUESE_HUBERT, custom_embedder_names, install_custom_embedder,
+    inference_embedder_directory, download_portuguese_hubert,
 )
+
+
+def training_embedder_choices(root, version):
+    if version != "v2":
+        return ["contentvec"]
+    return ["contentvec", "spin-v2", *("custom:" + name for name in custom_embedder_names(root))]
+
+
+def validate_training_embedder(root, name, version):
+    if name not in training_embedder_choices(root, version):
+        raise ValueError("Choose an installed training embedder. Custom HuBERT requires RVC v2.")
 
 
 def load_inference_embedder(config, embedder_model="contentvec"):
     root = os.getcwd()
     if embedder_model in ("contentvec", "spin-v2"):
         return load_embedder(root, embedder_model, config.device, config.is_half)[0]
+    if embedder_model == PORTUGUESE_HUBERT:
+        models, _, _ = load_fairseq_hubert(download_portuguese_hubert(root))
+        model = models[0].to(config.device)
+        model.has_final_proj = False
+        return (model.half() if config.is_half else model.float()).eval()
     from ilaria_hf_hubert import load_hf_hubert
 
     directory = inference_embedder_directory(root, embedder_model)

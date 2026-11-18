@@ -5,6 +5,10 @@ from infer.lib.infer_pack.models_onnx import SynthesizerTrnMsNSFsidM
 
 def export_onnx(ModelPath, ExportedPath):
     cpt = torch.load(ModelPath, map_location="cpu", weights_only=True)
+    from ilaria.ilaria_vocoder import inferred_vocoder
+
+    if cpt.get("vocoder") == "MRF HiFi-GAN" or inferred_vocoder(cpt["weight"]) == "MRF HiFi-GAN":
+        raise ValueError("ONNX export does not support MRF HiFi-GAN. Use the .pth in Ilaria RVC Inference.")
     cpt["config"][-3] = cpt["weight"]["emb_g.weight"].shape[0]
     vec_channels = 256 if cpt.get("version", "v1") == "v1" else 768
 

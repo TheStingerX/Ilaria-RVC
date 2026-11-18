@@ -11,6 +11,7 @@ import time
 
 EDGE = "Microsoft Edge (online)"
 WINDOWS = "Windows voices (offline)"
+ELEVENLABS = "ElevenLabs (online)"
 MAX_TEXT = 10000
 ALL_LANGUAGES = "All languages"
 ALL_GENDERS = "Any voice"
@@ -43,7 +44,11 @@ def _edge(request, timeout):
     return json.loads(result.stdout)
 
 
-def voices(engine, refresh=False):
+def voices(engine, refresh=False, api_key=None):
+    if engine == ELEVENLABS:
+        from ilaria_tts_elevenlabs import list_voices
+
+        return list_voices(api_key) if refresh else []
     if engine == WINDOWS:
         from ilaria_tts_windows import list_voices
 
@@ -92,7 +97,7 @@ def _encode(root, source, target, codec):
 
 
 def generate(root, convert, text, engine, voice, rate, volume, source_pitch,
-             apply_rvc, output_format):
+             apply_rvc, output_format, api_key=None, eleven_model=None):
     """Yield status, source player, RVC player and download."""
     text = (text or "").strip()
     if not text or len(text) > MAX_TEXT:
@@ -118,6 +123,12 @@ def generate(root, convert, text, engine, voice, rate, volume, source_pitch,
                 _edge({"operation": "synthesize", "text": text, "voice": voice,
                        "rate": f"{int(rate):+d}%", "volume": f"{int(volume):+d}%",
                        "pitch": f"{int(source_pitch):+d}Hz", "output": str(raw)}, 185)
+                _encode(root, raw, source_path, "pcm_s16le")
+            elif engine == ELEVENLABS:
+                from ilaria_tts_elevenlabs import synthesize
+
+                raw = Path(scratch) / "source.mp3"
+                synthesize(text, voice, api_key, eleven_model, raw)
                 _encode(root, raw, source_path, "pcm_s16le")
             elif engine == WINDOWS:
                 from ilaria_tts_windows import synthesize
@@ -173,16 +184,20 @@ def build_tab(gr, root, model, convert, track, pitch_methods, index_paths):
     def catalog_controls(catalog, locale, gender, voice):
         available = voice_choices(catalog, locale, gender)
         selected = voice if voice in available else next(iter(available), None)
-        return gr.Dropdown.update(choices=available, value=selected)
+        return gr.Dropdown.update(choices=available, value=selected, interactive=True)
 
-    def load_catalog(engine, current, locale, gender, voice, refresh):
+    def load_catalog(engine, current, locale, gender, voice, api_key, refresh):
         try:
-            catalog = voices(engine, refresh)
-        except (RuntimeError, OSError, subprocess.TimeoutExpired) as error:
+            catalog = voices(engine, refresh or (engine == ELEVENLABS and bool(os.getenv("ELEVENLABS_API_KEY"))), api_key)
+        except (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired) as error:
             catalog = current if engine == EDGE else []
             message = f"Could not refresh voices. {error}"
         else:
             message = f"{len(catalog)} voices available." if catalog else "Install a Windows desktop speech voice to use this engine."
+        if engine == ELEVENLABS and not catalog and not refresh and not message.startswith("Could not"):
+            message = "Enter an ElevenLabs API key and click Refresh voices."
+        elif engine == ELEVENLABS and not catalog and not message.startswith("Could not"):
+            message = "No voices are available for this ElevenLabs account."
         locales = [ALL_LANGUAGES] + sorted({language(item) for item in catalog})
         genders = [ALL_GENDERS] + sorted({item["Gender"] for item in catalog})
         locale = locale if locale in locales else ALL_LANGUAGES
@@ -190,11 +205,13 @@ def build_tab(gr, root, model, convert, track, pitch_methods, index_paths):
         return (catalog, gr.Dropdown.update(choices=locales, value=locale),
                 gr.Dropdown.update(choices=genders, value=gender),
                 catalog_controls(catalog, locale, gender, voice),
-                gr.Slider.update(visible=engine == EDGE), message)
+                gr.Slider.update(visible=engine == EDGE), message,
+                gr.update(visible=engine == ELEVENLABS), gr.update(visible=engine != ELEVENLABS),
+                message)
 
     def generate_audio(text, engine, voice, rate, volume, source_pitch, apply_rvc,
                        selected_model, speaker, semitones, method, index,
-                       ratio, median, sample_rate, envelope, protect):
+                       ratio, median, sample_rate, envelope, protect, catalog, api_key, eleven_model, manual_voice):
         if apply_rvc and not selected_model:
             yield ("Select a Voice Model above or turn off RVC conversion.",
                    gr.update(value=None, visible=True), gr.update(value=None, visible=True))
@@ -204,9 +221,13 @@ def build_tab(gr, root, model, convert, track, pitch_methods, index_paths):
             return convert(selected_model, speaker, path, semitones, method, index,
                            ratio, median, sample_rate, envelope, protect)
 
+        if engine == ELEVENLABS:
+            voice = (manual_voice or "").strip() or next(
+                (item.get("VoiceId") for item in catalog if item["ShortName"] == voice), None
+            )
         for status, source, converted, _ in generate(
             root, apply_model, text, engine, voice, rate, volume,
-            source_pitch, apply_rvc, "WAV",
+            source_pitch, apply_rvc, "WAV", api_key, eleven_model,
         ):
             yield (
                 status,
@@ -230,16 +251,26 @@ def build_tab(gr, root, model, convert, track, pitch_methods, index_paths):
             import_button = gr.Button("Load text")
         catalog = gr.State(DEFAULT_VOICES)
         with gr.Row():
-            engine = gr.Radio([EDGE, WINDOWS], value=EDGE, label="Speech engine")
+            engine = gr.Radio([EDGE, WINDOWS, ELEVENLABS], value=EDGE, label="Speech engine")
             locale = gr.Dropdown([ALL_LANGUAGES] + sorted({language(item) for item in DEFAULT_VOICES}), value=ALL_LANGUAGES,
                                  label="Language")
             gender = gr.Dropdown([ALL_GENDERS, "Female", "Male"], value=ALL_GENDERS,
                                  label="Voice filter")
+        from ilaria_tts_elevenlabs import MODELS
+
+        with gr.Column(visible=False) as eleven_settings:
+            gr.Markdown("ElevenLabs receives the text and uses your account credits.")
+            api_key = gr.Textbox(label="ElevenLabs API key", type="password")
+            eleven_refresh = gr.Button("Load ElevenLabs voices", variant="primary")
+            eleven_status = gr.Textbox(label="ElevenLabs connection", interactive=False)
+            manual_voice = gr.Textbox(label="ElevenLabs Voice ID (optional)",
+                                      placeholder="Paste a Voice ID if the API key cannot list voices")
+            eleven_model = gr.Dropdown(list(MODELS), value=MODELS[0], label="ElevenLabs model")
         with gr.Row():
             voice = gr.Dropdown(voice_choices(DEFAULT_VOICES, ALL_LANGUAGES, ALL_GENDERS),
-                                value="it-IT-ElsaNeural", label="Source voice")
+                                value="it-IT-ElsaNeural", label="Source voice", interactive=True)
             refresh = gr.Button("Refresh voices", variant="primary")
-        with gr.Accordion("Speech settings", open=False, elem_id="tts-speech-settings"):
+        with gr.Accordion("Speech settings", open=False, elem_id="tts-speech-settings") as speech_settings:
             with gr.Row():
                 rate = gr.Slider(-50, 100, value=0, step=5, label="Speaking rate adjustment (%)")
                 volume = gr.Slider(-80, 50, value=0, step=5, label="Source volume adjustment (%)")
@@ -268,17 +299,21 @@ def build_tab(gr, root, model, convert, track, pitch_methods, index_paths):
         log = gr.Textbox(label="TTS+RVC Log", lines=3, max_lines=9, interactive=False)
 
         import_button.click(read_text, [upload, text], [text, log], show_progress=False)
-        catalog_inputs = [engine, catalog, locale, gender, voice]
-        catalog_outputs = [catalog, locale, gender, voice, source_pitch, log]
+        catalog_inputs = [engine, catalog, locale, gender, voice, api_key]
+        catalog_outputs = [catalog, locale, gender, voice, source_pitch, log, eleven_settings, speech_settings, eleven_status]
         engine.change(lambda *args: load_catalog(*args, False), catalog_inputs, catalog_outputs)
-        refresh.click(lambda *args: load_catalog(*args, True), catalog_inputs, catalog_outputs)
+        refresh_catalog = lambda *args: load_catalog(*args, True)
+        refresh.click(refresh_catalog, catalog_inputs, catalog_outputs)
+        eleven_refresh.click(refresh_catalog, catalog_inputs, catalog_outputs, queue=False)
+        api_key.submit(refresh_catalog, catalog_inputs, catalog_outputs, queue=False)
         for filter_control in (locale, gender):
             filter_control.change(catalog_controls, [catalog, locale, gender, voice], voice,
                                   show_progress=False)
         generate_button.click(
             track(generate_audio, "text to speech"),
             [text, engine, voice, rate, volume, source_pitch, apply_rvc,
-             model, speaker, pitch, method, index, ratio, median, sample_rate, envelope, protect],
+             model, speaker, pitch, method, index, ratio, median, sample_rate, envelope, protect,
+             catalog, api_key, eleven_model, manual_voice],
             [log, source_audio, rvc_audio],
         )
     return speaker, index

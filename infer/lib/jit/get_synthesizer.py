@@ -10,6 +10,10 @@ def get_synthesizer(pth_path, device=torch.device("cpu")):
     )
 
     cpt = torch.load(pth_path, map_location=torch.device("cpu"), weights_only=True)
+    from ilaria.ilaria_vocoder import inferred_vocoder
+
+    if cpt.get("vocoder") == "MRF HiFi-GAN" or inferred_vocoder(cpt["weight"]) == "MRF HiFi-GAN":
+        raise ValueError("JIT export does not support MRF HiFi-GAN. Use the .pth in Ilaria RVC Inference.")
     # tgt_sr = cpt["config"][-1]
     cpt["config"][-3] = cpt["weight"]["emb_g.weight"].shape[0]
     if_f0 = cpt.get("f0", 1)

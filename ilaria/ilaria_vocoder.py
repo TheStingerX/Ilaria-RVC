@@ -5,14 +5,14 @@ from pathlib import Path as _IlariaBootstrapPath
 _ilaria_install_root = _IlariaBootstrapPath(__file__).resolve().parents[1]
 _ilaria_sys.path.insert(0, str(_ilaria_install_root / "ilaria"))
 _ilaria_sys.path.append(str(_ilaria_install_root))
-VOCODERS = ('HiFi-GAN', 'RefineGAN')
+VOCODERS = ('HiFi-GAN', 'MRF HiFi-GAN', 'RefineGAN')
 _MEL_LOSSES = {}
 
 
 def normalize_vocoder(value=None):
     value = value or 'HiFi-GAN'
     if value not in VOCODERS:
-        raise ValueError('Choose HiFi-GAN or RefineGAN.')
+        raise ValueError('Choose HiFi-GAN, MRF HiFi-GAN, or RefineGAN.')
     return value
 
 
@@ -23,6 +23,23 @@ def apply_vocoder(model, vocoder='HiFi-GAN', version='v2', if_f0=1, sample_rate=
         model.vocoder = vocoder
         return model
     sample_rate = {'32k': 32000, '40k': 40000, '48k': 48000}.get(sample_rate, sample_rate)
+    if vocoder == 'MRF HiFi-GAN':
+        if version != 'v2' or not if_f0 or int(sample_rate) not in (32000, 40000, 48000):
+            raise ValueError('MRF HiFi-GAN requires RVC v2, 32/40/48 kHz, and Pitch Guidance.')
+        from ilaria_hifigan_mrf import HiFiGANMRFGenerator
+        model.dec = HiFiGANMRFGenerator(
+            in_channel=model.inter_channels,
+            upsample_initial_channel=model.upsample_initial_channel,
+            upsample_rates=list(model.upsample_rates),
+            upsample_kernel_sizes=list(model.upsample_kernel_sizes),
+            resblock_kernel_sizes=model.resblock_kernel_sizes,
+            resblock_dilations=model.resblock_dilation_sizes,
+            gin_channels=model.gin_channels,
+            sample_rate=int(sample_rate),
+            harmonic_num=8,
+        )
+        model.vocoder = vocoder
+        return model
     if version != 'v2' or not if_f0 or int(sample_rate) != 32000:
         raise ValueError('RefineGAN requires RVC v2, 32 kHz and Pitch Guidance enabled.')
     if list(model.upsample_rates) != [10, 8, 2, 2] or int(model.gin_channels) != 256:
@@ -56,6 +73,8 @@ def inferred_vocoder(weights):
     names = tuple(weights)
     if any(name.startswith('dec.mel_conv.') for name in names):
         return 'RefineGAN'
+    if any(name.startswith('dec.mrfs.') for name in names):
+        return 'MRF HiFi-GAN'
     if any(name.startswith('dec.conv_pre.') for name in names):
         return 'HiFi-GAN'
     return None

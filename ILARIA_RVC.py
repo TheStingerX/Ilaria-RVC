@@ -782,10 +782,12 @@ def extract_f0_feature(gpus, n_p, f0method, if_f0, exp_dir, version19, gpus_rmvp
     if precision == "FP16" and not torch.cuda.is_available():
         yield "FP16 requires a CUDA GPU. Select FP32 in Training Settings & Other."
         return
-    from ilaria_embedders import ensure_embedder, check_feature_embedder, save_feature_embedder
+    from ilaria_embedders import ensure_embedder, check_feature_embedder, save_feature_embedder, validate_training_embedder
     try:
         check_feature_embedder(pathlib.Path(now_dir)/"logs"/str(exp_dir), embedder_model, version19)
-        yield from ensure_embedder(now_dir, embedder_model)
+        validate_training_embedder(now_dir, embedder_model, version19)
+        if not embedder_model.startswith("custom:"):
+            yield from ensure_embedder(now_dir, embedder_model)
         save_feature_embedder(pathlib.Path(now_dir)/"logs"/str(exp_dir), embedder_model)
     except (OSError, ValueError) as error:
         yield "Feature Extraction error: " + str(error)
@@ -903,7 +905,7 @@ def extract_f0_feature(gpus, n_p, f0method, if_f0, exp_dir, version19, gpus_rmvp
                 version19,
             )
         )
-        cmd += " --precision " + precision + " --embedder " + embedder_model
+        cmd += ' --precision %s --embedder "%s"' % (precision, embedder_model)
         logger.info(cmd)
         p = Popen(
             cmd, shell=True, cwd=now_dir
@@ -1360,6 +1362,10 @@ def _click_train(
             )
     if options["embedder_model"] == "spin-v2":
         opt = [line.replace("/logs/mute/3_feature", "/logs/mute_spin-v2/3_feature") for line in opt]
+    if options["embedder_model"].startswith("custom:"):
+        mute_feature = f"{now_dir}/logs/mute/3_feature{fea_dim}/mute.npy"
+        custom_mute = f"{now_dir}/logs/{exp_dir1}/mute_custom.npy"
+        opt = [line.replace(mute_feature, custom_mute) for line in opt]
     filelist_path = os.path.join(exp_dir, "filelist.txt")
     if os.path.isfile(os.path.join(exp_dir, "training-state", "latest.json")):
         try:
@@ -1722,8 +1728,8 @@ def add_training_to_queue(*values):
     yield "Saving this job's dataset and settings. Please wait..."
     try:
         from ilaria_pretrain_selector import resolve_training_pretrain, FROZEN, NONE, AUTO
-        if args[23] == "RefineGAN" and args[29] == AUTO:
-            raise ValueError("Select a compatible RefineGAN pretrained pair or None before adding the job.")
+        if args[23] in ("RefineGAN", "MRF HiFi-GAN") and args[29] == AUTO:
+            raise ValueError("Select a compatible pretrained pair or None before adding the job.")
         args[8], args[9] = resolve_training_pretrain(args[29], args[1], args[2], args[13], now_dir, args[8], args[9])
         args[29] = FROZEN if args[29] != NONE else NONE
         training_queue.add(args, {"cpu": int(cpu), "feature_gpus": feature_gpus,
@@ -2624,6 +2630,8 @@ def inference_options_from_controls(
     formant=False, formant_ratio=1.0, post_process=False, effects=None,
     post_pitch=0, gain_db=0, limiter_db=-6,
     embedder_model=AUTO_INFERENCE_EMBEDDER, custom_embedder=None,
+    high_register=False, high_mode="true_pitch", high_ceiling=1250,
+    high_threshold=1040, high_sensitivity="Balanced", high_minimum_ms=60,
 ):
     if embedder_model == "custom":
         if not custom_embedder:
@@ -2631,6 +2639,8 @@ def inference_options_from_controls(
         embedder_model = "custom:" + custom_embedder
     return {
         "embedder_model": None if embedder_model == AUTO_INFERENCE_EMBEDDER else embedder_model,
+        "rmvpe_high_register": (high_mode, high_ceiling, high_threshold,
+                                high_sensitivity, high_minimum_ms) if high_register else None,
         "split_audio": split_audio,
         "autotune_strength": autotune_strength if autotune else None,
         "proposed_pitch_hz": target_pitch if proposed_pitch else None,
@@ -2645,25 +2655,31 @@ def inference_options_from_controls(
     }
 
 
+def save_custom_embedder(folder, weights, configuration):
+    from ilaria_embedders import install_custom_embedder
+
+    if not weights or not configuration:
+        return "Choose both the .bin weights and the .json configuration.", None
+    for file, suffix in ((weights, ".bin"), (configuration, ".json")):
+        filename = getattr(file, "orig_name", file.name)
+        if pathlib.Path(filename).suffix.casefold() != suffix:
+            return "Choose a %s file for that input." % suffix, None
+    try:
+        installed = install_custom_embedder(now_dir, folder, weights.name, configuration.name)
+    except (ValueError, OSError, RuntimeError) as error:
+        return str(error), None
+    return "Installed custom embedder: " + installed, installed
+
 def build_inference_embedder_controls(elem_id):
-    from ilaria_embedders import INFERENCE_EMBEDDERS, custom_embedder_names, install_custom_embedder
+    from ilaria_embedders import INFERENCE_EMBEDDERS, custom_embedder_names
 
     def refresh_custom(selected):
         names = custom_embedder_names(now_dir)
         return gr.update(choices=names, value=selected if selected in names else None)
 
     def save_custom(folder, weights, configuration):
-        if not weights or not configuration:
-            return "Choose both the .bin weights and the .json configuration.", gr.update()
-        for file, suffix in ((weights, ".bin"), (configuration, ".json")):
-            filename = getattr(file, "orig_name", file.name)
-            if pathlib.Path(filename).suffix.casefold() != suffix:
-                return "Choose a %s file for that input." % suffix, gr.update()
-        try:
-            installed = install_custom_embedder(now_dir, folder, weights.name, configuration.name)
-        except (ValueError, OSError, RuntimeError) as error:
-            return str(error), gr.update()
-        return "Installed custom embedder: " + installed, refresh_custom(installed)
+        status, installed = save_custom_embedder(folder, weights, configuration)
+        return status, refresh_custom(installed) if installed else gr.update()
 
     with gr.Accordion("Embedder Settings", open=False, elem_id=elem_id):
         embedder = gr.Radio(
@@ -2673,7 +2689,7 @@ def build_inference_embedder_controls(elem_id):
         gr.Markdown(
             "Auto uses the embedder saved with the voice model. "
             "If you choose a different embedder, set Index Ratio to zero unless you have a matching index. "
-            "Chinese, Japanese and Korean HuBERT Base require an RVC v2 voice model."
+            "Chinese, Japanese, Korean and Portuguese HuBERT Base require an RVC v2 voice model."
         )
         with gr.Column(visible=False) as custom_controls:
             with gr.Accordion("Custom Embedder", open=True):
@@ -2696,6 +2712,62 @@ def build_inference_embedder_controls(elem_id):
                       [folder, weights, configuration], [status, custom],
                       api_name="install_custom_embedder")
     return [embedder, custom]
+
+
+TUTORIAL_SECTIONS += (("RMVPE High Register", "Use Inference Settings with RMVPE for very high singing notes. True pitch uses the corrected F0 up to Maximum F0. Fold keeps corrected notes an octave lower. Advanced sets the activation threshold, sensitivity and minimum duration of a sustained correction. The preview compares the first 30 seconds without converting the voice."),)
+
+
+TUTORIAL_SECTIONS += (("MRF HiFi-GAN", "Select MRF HiFi-GAN in Training Settings with RVC v2 at 32, 40, or 48 kHz. Pitch Guidance stays on. Choose None to train from scratch or select a compatible MRF pretrained pair. The exported voice model automatically selects the MRF decoder during .pth inference."),)
+
+
+def build_rmvpe_high_register(method, source_audio, elem_id):
+    from ilaria_rmvpe_high_register import HOP, SAMPLE_RATE, SENSITIVITY, correct_high_register
+
+    def preview(path, mode, ceiling, threshold, sensitivity, minimum_ms):
+        from matplotlib.figure import Figure
+        from infer.lib.audio import load_audio
+        from ilaria_inference_pipeline import _get_rmvpe
+
+        if not path:
+            raise gr.Error("Add an audio file before previewing its pitch.")
+        audio = load_audio(path, SAMPLE_RATE)[:30 * SAMPLE_RATE]
+        if len(audio) < HOP:
+            raise gr.Error("The audio is too short to extract pitch.")
+        model = _get_rmvpe(config.device, config.is_half)
+
+        def estimate(samples):
+            return model.infer_from_audio(samples, thred=0.03)
+
+        original = estimate(audio)
+        corrected = correct_high_register(audio, original, estimate, mode, ceiling,
+                                          threshold, sensitivity, minimum_ms)
+        clock = np.arange(len(original)) * HOP / SAMPLE_RATE
+        figure = Figure(figsize=(9, 3))
+        axes = figure.subplots()
+        axes.plot(clock, np.where(original > 0, original, np.nan), label="Original")
+        axes.plot(clock, np.where(corrected > 0, corrected, np.nan), "--", label="Corrected")
+        axes.set(xlabel="Time (s)", ylabel="F0 (Hz)")
+        axes.legend()
+        figure.tight_layout()
+        return figure
+
+    with gr.Column(visible=True) as controls:
+        with gr.Accordion("RMVPE High Register", open=False, elem_id=elem_id):
+            enabled = gr.Checkbox(label="Enable high register", value=False)
+            gr.Markdown("Correct octave errors in very high singing notes. Preview compares the first 30 seconds.")
+            with gr.Row():
+                mode = gr.Radio(["true_pitch", "fold"], value="true_pitch", label="Mode")
+                ceiling = gr.Slider(1000, 2000, value=1250, step=10, label="Maximum F0 (Hz)")
+            with gr.Accordion("Advanced", open=False, elem_id=f"{elem_id}-advanced"):
+                threshold = gr.Slider(800, 1500, value=1040, step=10, label="Activation threshold (Hz)")
+                sensitivity = gr.Radio(list(SENSITIVITY), value="Balanced", label="Sensitivity")
+                minimum = gr.Slider(0, 300, value=60, step=10, label="Minimum note duration (ms)")
+            button = gr.Button("Preview original and corrected F0")
+            plot = gr.Plot(label="RMVPE F0 preview")
+            button.click(preview, [source_audio, mode, ceiling, threshold, sensitivity, minimum], plot)
+    method.change(lambda value: gr.update(visible=value == "rmvpe"), [method], [controls],
+                  queue=False, show_progress=False)
+    return [enabled, mode, ceiling, threshold, sensitivity, minimum]
 
 
 def build_inference_audio_controls(elem_id):
@@ -2950,8 +3022,13 @@ ILARIARVC_CSS += """
 ILARIARVC_CSS += """
 .gradio-container #single-audio-processing,
 .gradio-container #batch-audio-processing,
+.gradio-container #training-embedder-upload,
 .gradio-container #single-embedder-settings,
-.gradio-container #batch-embedder-settings {
+.gradio-container #batch-embedder-settings,
+.gradio-container #single-rmvpe-high-register,
+.gradio-container #batch-rmvpe-high-register,
+.gradio-container #single-rmvpe-high-register-advanced,
+.gradio-container #batch-rmvpe-high-register-advanced {
     padding: 12px;
     border: 1px solid #D8B4FE !important;
     border-radius: 12px;
@@ -3023,11 +3100,46 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                         interactive=True,
                     )
                 with gr.Row():
-                    training_vocoder = gr.Radio(label="Vocoder", choices=["HiFi-GAN", "RefineGAN"], value="HiFi-GAN", interactive=True)
-                    training_embedder = gr.Radio(label="Embedder Model", choices=["contentvec", "spin-v2"], value="contentvec", interactive=True)
+                    training_vocoder = gr.Radio(label="Vocoder", choices=["HiFi-GAN", "MRF HiFi-GAN", "RefineGAN"], value="HiFi-GAN", interactive=True)
+                    from ilaria_embedders import training_embedder_choices
+
+                    training_embedder = gr.Dropdown(
+                        label="Embedder Model", choices=training_embedder_choices(now_dir, "v2"),
+                        value="contentvec", interactive=True,
+                    )
+                    refresh_training_embedders = gr.Button("Refresh installed embedders")
+                with gr.Accordion("Custom Embedder", open=False, elem_id="training-embedder-upload"):
+                    gr.Markdown("Upload the HuBERT weights and config.json for an RVC v2 model.")
+                    training_embedder_folder = gr.Textbox(label="Folder Name")
+                    with gr.Row():
+                        training_embedder_weights = gr.File(label="Upload .bin", file_types=["file"])
+                        training_embedder_config = gr.File(label="Upload config.json", file_types=["file"])
+                    save_training_embedder = gr.Button("Save custom embedder", variant="primary")
+                    training_embedder_status = gr.Textbox(label="Embedder Import Status", interactive=False)
+
+                def install_training_embedder(version, folder, weights, configuration):
+                    if version != "v2":
+                        return "Select RVC v2 to use a custom embedder.", gr.update()
+                    status, installed = save_custom_embedder(folder, weights, configuration)
+                    if not installed:
+                        return status, gr.update()
+                    return status, refresh_embedder_choices(version, "custom:" + installed)
+
+                def refresh_embedder_choices(version, selected):
+                    choices = training_embedder_choices(now_dir, version)
+                    return gr.update(choices=choices, value=selected if selected in choices else "contentvec")
+                refresh_training_embedders.click(
+                    refresh_embedder_choices, [version19, training_embedder], [training_embedder],
+                    queue=False, show_progress=False,
+                )
+                save_training_embedder.click(
+                    update_operation_gate.track(install_training_embedder, "embedder installation"),
+                    [version19, training_embedder_folder, training_embedder_weights, training_embedder_config],
+                    [training_embedder_status, training_embedder],
+                )
                 silent_training_files = gr.Slider(minimum=0, maximum=10, value=2, step=1, label="Silent training files", interactive=True)
                 index_algorithm_control = gr.Radio(label="Index Algorithm", choices=["Auto", "Faiss", "KMeans"], value="Auto", interactive=True)
-                gr.Markdown("RefineGAN requires RVC v2, 32 kHz and Pitch Guidance. Use a compatible pretrained pair or choose None to train from scratch. Spin-v2 downloads its embedder once; use a new Model Name when changing embedders. Steps is an alternative to epochs; Save frequency still counts epochs. Cache data to GPU must be No for Steps.", elem_id="training-options-help")
+                gr.Markdown("MRF HiFi-GAN requires RVC v2 and Pitch Guidance at 32, 40, or 48 kHz. RefineGAN requires RVC v2, 32 kHz and Pitch Guidance. Use a compatible pretrained pair or choose None to train from scratch. Spin-v2 downloads its embedder once; use a new Model Name when changing embedders. Steps is an alternative to epochs; Save frequency still counts epochs. Cache data to GPU must be No for Steps.", elem_id="training-options-help")
                 training_precision = gr.Radio(label="Training Precision", choices=["FP16", "FP32"], value="FP32", interactive=True)
                 with gr.Row():
                     with gr.Column(scale=1):
@@ -3422,6 +3534,7 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                         )
                         audio_controls0 = build_inference_audio_controls("single-audio-processing")
                         embedder_controls0 = build_inference_embedder_controls("single-embedder-settings")
+                        high_register0 = build_rmvpe_high_register(f0method0, input_audio0, "single-rmvpe-high-register")
                         f0_file = gr.File(
                             label=i18n("F0 curve file [optional]"),
                             visible=False,
@@ -3442,6 +3555,10 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                         ]
                         single_processing = [*single_inputs, format0, *audio_controls0]
                         but0.click(
+                            convert_named_inference, [*single_processing, *embedder_controls0, *high_register0],
+                            [vc_output1, vc_output2], api_name="infer_convert_with_high_register",
+                        )
+                        gr.Button(visible=False).click(
                             convert_named_inference, [*single_processing, *embedder_controls0],
                             [vc_output1, vc_output2], api_name="infer_convert_with_embedder",
                         )
@@ -3538,6 +3655,7 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                         )
                         audio_controls1 = build_inference_audio_controls("batch-audio-processing")
                         embedder_controls1 = build_inference_embedder_controls("batch-embedder-settings")
+                        high_register1 = build_rmvpe_high_register(f0method1, inputs, "batch-rmvpe-high-register")
                     refresh_button.click(fn=lambda: change_choices()[1], inputs=[], outputs=file_index4, api_name="infer_refresh_batch")
 
                 with gr.Column(elem_id="batch-inference-results"):
@@ -3553,6 +3671,10 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                     ]
                     batch_processing = [*batch_inputs, *audio_controls1]
                     but1.click(
+                        batch_inference_audio, [*batch_processing, *embedder_controls1, *high_register1],
+                        [vc_output3, vc_output_batch_audio], api_name="infer_convert_batch_with_high_register",
+                    )
+                    gr.Button(visible=False).click(
                         batch_inference_audio, [*batch_processing, *embedder_controls1],
                         [vc_output3, vc_output_batch_audio], api_name="infer_convert_batch_with_embedder",
                     )
@@ -3605,7 +3727,8 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                 download_models_button.click(download_voice_models, [model_url], [download_models_log], show_progress=False, api_name="download_voice_model")
 
             with gr.Accordion("Download embedders", open=False, elem_id="embedder-download"):
-                from ilaria_hubert_assets import HUBERT_EMBEDDERS, download_builtin_embedder, inference_embedder_installed
+                from ilaria_hubert_assets import (HUBERT_EMBEDDERS, PORTUGUESE_HUBERT, download_builtin_embedder,
+                                                  download_portuguese_hubert, inference_embedder_installed)
                 from ilaria_embedders import ensure_embedder
 
                 def download_selected_embedder(name):
@@ -3616,6 +3739,8 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                     try:
                         if name == "spin-v2":
                             yield from ensure_embedder(now_dir, name)
+                        elif name == PORTUGUESE_HUBERT:
+                            download_portuguese_hubert(now_dir)
                         else:
                             download_builtin_embedder(now_dir, name)
                     except (OSError, ValueError) as error:
@@ -3623,7 +3748,7 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                         return
                     yield f"{name} is installed and ready."
 
-                embedder_choice = gr.Dropdown([*HUBERT_EMBEDDERS, "spin-v2"], value="spin", label="Embedder")
+                embedder_choice = gr.Dropdown([*HUBERT_EMBEDDERS, PORTUGUESE_HUBERT, "spin-v2"], value="spin", label="Embedder")
                 embedder_button = gr.Button("Download selected embedder", variant="primary")
                 embedder_log = gr.Textbox(label="Embedder download status", interactive=False)
                 embedder_button.click(download_selected_embedder, [embedder_choice], [embedder_log])

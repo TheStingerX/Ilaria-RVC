@@ -1,4 +1,5 @@
 """Keep training controls consistent with the selected backend capabilities."""
+from ilaria_embedders import training_embedder_choices
 from ilaria_pretrain_selector import AUTO, NONE, SELECT, apply_pretrain, pretrain_choices
 
 
@@ -16,11 +17,14 @@ def control_updates(root, version, vocoder, rate, pitch, embedder, target, cache
     refined = vocoder == 'RefineGAN'
     rates = ['32k'] if refined else (['40k', '48k'] if version == 'v1' else ['32k', '40k', '48k'])
     chosen_rate = rate if rate in rates else rates[0]
-    chosen_pitch = True if refined else bool(pitch)
-    vocoders = ['HiFi-GAN', 'RefineGAN'] if version == 'v2' and chosen_pitch else ['HiFi-GAN']
-    embedders = ['contentvec', 'spin-v2'] if version == 'v2' else ['contentvec']
+    requires_pitch = refined or vocoder == 'MRF HiFi-GAN'
+    chosen_pitch = True if requires_pitch else bool(pitch)
+    vocoders = ['HiFi-GAN', 'MRF HiFi-GAN', 'RefineGAN'] if version == 'v2' and chosen_pitch else ['HiFi-GAN']
+    embedders = training_embedder_choices(root, version)
+    if embedder not in embedders:
+        embedder = 'contentvec'
     choices = pretrain_choices(root, chosen_rate, chosen_pitch, version, vocoder)
-    selected = pretrain if pretrain in choices else (SELECT if refined else AUTO)
+    selected = pretrain if pretrain in choices else (SELECT if requires_pitch else AUTO)
     try:
         if selected == SELECT:
             g, d = '', ''
@@ -40,7 +44,7 @@ def control_updates(root, version, vocoder, rate, pitch, embedder, target, cache
     selected_precision = precision if cuda else 'FP32'
     return (
         update(rate, chosen_rate, choices=rates, interactive=len(rates)>1),
-        update(pitch, chosen_pitch, choices=[True] if refined else [True,False], interactive=not refined),
+        update(pitch, chosen_pitch, choices=[True] if requires_pitch else [True,False], interactive=not requires_pitch),
         update(original_vocoder, vocoder, choices=vocoders, interactive=len(vocoders)>1),
         update(original_embedder, embedder, choices=embedders, interactive=len(embedders)>1),
         update(cache, selected_cache, interactive=cache_enabled),

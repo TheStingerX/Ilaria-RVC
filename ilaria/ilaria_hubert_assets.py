@@ -20,8 +20,17 @@ HUBERT_EMBEDDERS = {
 }
 INFERENCE_EMBEDDERS = (
     "contentvec", "spin", "spin-v2", "chinese-hubert-base",
-    "japanese-hubert-base", "korean-hubert-base",
+    "japanese-hubert-base", "korean-hubert-base", "portuguese-hubert-base",
 )
+PORTUGUESE_HUBERT = "portuguese-hubert-base"
+PORTUGUESE_URL = (
+    "https://huggingface.co/shiromiya/fairseq-hubert-portuguese/resolve/"
+    "fb7add9c9addc6192a748bd2555816aa2baefc4b/checkpoint_epoch_55_best.pt"
+)
+PORTUGUESE_SIZE = 1134934506
+PORTUGUESE_SHA256 = "c470a15cfcf6e2452c4c293481f0ccd208d22c58c8fa777c3c01afe9753c7797"
+_portuguese_lock = Lock()
+
 MAX_CONFIG_BYTES = 256 * 1024
 MAX_WEIGHTS_BYTES = 1024**3
 _install_lock = Lock()
@@ -139,6 +148,34 @@ def _download_builtin_embedder(root, name):
     return destination
 
 
+def portuguese_hubert_path(root):
+    return _root(root) / PORTUGUESE_HUBERT / "hubert.pt"
+
+
+def download_portuguese_hubert(root):
+    destination = portuguese_hubert_path(root)
+    with _portuguese_lock:
+        if destination.is_file() and destination.stat().st_size == PORTUGUESE_SIZE:
+            return destination
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        with TemporaryDirectory(prefix=".download-", dir=destination.parent) as temporary:
+            path = Path(temporary) / "hubert.pt"
+            checksum = hashlib.sha256()
+            received = 0
+            request = Request(PORTUGUESE_URL, headers={"User-Agent": "Ilaria-RVC"})
+            with urlopen(request, timeout=75) as response, path.open("xb") as output:
+                for chunk in iter(lambda: response.read(4 * 1024**2), b""):
+                    received += len(chunk)
+                    if received > PORTUGUESE_SIZE:
+                        raise ValueError("Portuguese HuBERT download exceeds the expected size.")
+                    output.write(chunk)
+                    checksum.update(chunk)
+            if received != PORTUGUESE_SIZE or checksum.hexdigest() != PORTUGUESE_SHA256:
+                raise ValueError("Portuguese HuBERT download did not pass the checksum check.")
+            path.replace(destination)
+    return destination
+
+
 def inference_embedder_directory(root, name):
     if name in HUBERT_EMBEDDERS:
         return download_builtin_embedder(root, name)
@@ -151,6 +188,9 @@ def inference_embedder_directory(root, name):
 
 
 def inference_embedder_installed(root, name):
+    if name == PORTUGUESE_HUBERT:
+        path = portuguese_hubert_path(root)
+        return path.is_file() and path.stat().st_size == PORTUGUESE_SIZE
     if name in ("contentvec", "spin-v2"):
         filename = "hubert_base.pt" if name == "contentvec" else "spin-v2.pt"
         return (_root(root).parent / filename).is_file()

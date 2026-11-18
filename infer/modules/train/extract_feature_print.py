@@ -19,7 +19,7 @@ def parse_extraction_args(argv):
     parser.add_argument("n_part", type=int)
     parser.add_argument("i_part", type=int)
     parser.add_argument("paths", nargs="+", metavar="[GPU] EXP_DIR VERSION")
-    parser.add_argument("--embedder", choices=("contentvec", "spin-v2"), default="contentvec")
+    parser.add_argument("--embedder", default="contentvec")
     parser.add_argument("--precision", choices=("FP16", "FP32"), default="FP32")
     args = parser.parse_args(argv)
     if len(args.paths) == 2:
@@ -124,19 +124,35 @@ if os.access(model_path, os.F_OK) == False:
         % model_path
     )
     exit(0)
-from ilaria_embedders import load_embedder
-model, saved_cfg = load_embedder(os.getcwd(), args.embedder, device, use_half)
+from ilaria_embedders import (
+    inference_embedder_directory, load_embedder, validate_training_embedder,
+)
+
+validate_training_embedder(os.getcwd(), args.embedder, version)
+custom_hubert = args.embedder.startswith("custom:")
+if custom_hubert:
+    from ilaria_hf_hubert import load_hf_hubert
+
+    model = load_hf_hubert(inference_embedder_directory(os.getcwd(), args.embedder), device, use_half)
+    normalize = False
+else:
+    model, saved_cfg = load_embedder(os.getcwd(), args.embedder, device, use_half)
+    normalize = saved_cfg.task.normalize
 printt("move model to %s" % device)
-if args.embedder == "spin-v2" and i_part == 0:
+if args.embedder != "contentvec" and i_part == 0:
     # Silence must use the same representation as the voice recordings.
-    silent = readwave("logs/mute/1_16k_wavs/mute.wav", normalize=saved_cfg.task.normalize)
+    silent = readwave("logs/mute/1_16k_wavs/mute.wav", normalize=normalize)
     with torch.no_grad():
         value = model.extract_features(source=(silent.half() if use_half else silent.float()).to(device),
             padding_mask=torch.zeros_like(silent, dtype=torch.bool).to(device), output_layer=9 if version == "v1" else 12)[0]
         value = model.final_proj(value) if version == "v1" else value
-    silent_folder = "logs/mute_spin-v2/3_feature%s" % (256 if version == "v1" else 768)
-    os.makedirs(silent_folder, exist_ok=True)
-    np.save(silent_folder + "/mute.npy", value.squeeze(0).float().cpu().numpy(), allow_pickle=False)
+    if custom_hubert:
+        silent_path = os.path.join(exp_dir, "mute_custom.npy")
+    else:
+        silent_folder = "logs/mute_spin-v2/3_feature%s" % (256 if version == "v1" else 768)
+        os.makedirs(silent_folder, exist_ok=True)
+        silent_path = os.path.join(silent_folder, "mute.npy")
+    np.save(silent_path, value.squeeze(0).float().cpu().numpy(), allow_pickle=False)
 
 todo = sorted(list(os.listdir(wavPath)))[i_part::n_part]
 n = max(1, len(todo) // 10)  # 最多打印十条
@@ -153,7 +169,7 @@ else:
                 if os.path.exists(out_path):
                     continue
 
-                feats = readwave(wav_path, normalize=saved_cfg.task.normalize)
+                feats = readwave(wav_path, normalize=normalize)
                 padding_mask = torch.BoolTensor(feats.shape).fill_(False)
                 inputs = {
                     "source": (feats.half() if use_half else feats.float()).to(device),
