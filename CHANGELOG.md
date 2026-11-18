@@ -225,4 +225,5 @@ Model library
 
 - Explicitly enabled PyTorch's restricted checkpoint loader for voice models, model tools, ONNX export, and training model weights.
 - The bundled PyTorch versions are unchanged. Their restricted loaders have known vulnerabilities, so continue to use checkpoints from trusted sources.
-- To install, close Ilaria RVC 2.2.1, extract the patch into its folder, accept file replacement, and reopen Ilaria RVC. [Download the 2.2.2 patch](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.2.2/ILARIA_RVC-2.2.2-manual.zip?download=true)
+- For a fresh Windows installation, download the full 2.2.2 ZIP, extract it to a new folder, and run `ILARIA_RVC.bat`. [Download the full 2.2.2 package](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.2.2/ILARIA_RVC-2.2.2.zip?download=true)
+- To update, close Ilaria RVC 2.2.1, extract the patch into its folder, accept file replacement, and reopen Ilaria RVC. [Download the 2.2.2 patch](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.2.2/ILARIA_RVC-2.2.2-manual.zip?download=true)
