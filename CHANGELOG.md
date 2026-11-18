@@ -223,5 +223,6 @@ Model library
 
 ## 2.2.2
 
-- Explicitly enable restricted weights-only loading for voice models and other PyTorch checkpoints.
-- Install this patch manually over 2.2.1. The bundled PyTorch versions are unchanged.
+- Explicitly enabled PyTorch's restricted checkpoint loader for voice models, model tools, ONNX export, and training model weights.
+- The bundled PyTorch versions are unchanged. Their restricted loaders have known vulnerabilities, so continue to use checkpoints from trusted sources.
+- To install, close Ilaria RVC 2.2.1, extract the patch into its folder, accept file replacement, and reopen Ilaria RVC. [Download the 2.2.2 patch](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.2.2/ILARIA_RVC-2.2.2-manual.zip?download=true)
