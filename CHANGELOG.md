@@ -237,7 +237,10 @@ Model library
 - Added RMVPE High Register controls for high singing notes, with pitch modes, detection limits and an audio preview.
 - Added ElevenLabs to TTS, with an API key field and voice selection.
 - Added MRF HiFi-GAN for training and inference, plus compatible pretrained options in the download catalog.
+- Expanded the pretrained downloader with 15 generator/discriminator pairs. MRF HiFi-GAN adds KLM 4.4 X1 and X2 at 40 kHz. HiFi-GAN adds AnimePretrain, Nezox and UKR at 32 kHz, RIN_E3 and Snowie at 40 kHz, Snowie V2 at 40/48 kHz, Snowie V3.1 at 32/40/48 kHz, Snowie × RIN at 40 kHz, and VocalCore and VocalCore Try3b at 48 kHz.
 - Added Portuguese HuBERT Base as an optional inference embedder.
 - Added custom HuBERT upload and saving directly in Training for RVC v2. The new embedder is selected automatically and carried into the exported voice model.
+
+On the refreshed 2.2.2 build with PyTorch 2.10, open **Other → Update Ilaria RVC** and install **2.2.2.1**. After restart, check again and install **2.3.0**. The 2.2.2.1 bridge updates the installer so it can verify and install the extra files in 2.3.0.
 
 For a fresh Windows installation or an upgrade from 2.2.1 and earlier, use the [full NVIDIA Windows ZIP](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.3.0/ILARIA_RVC-2.3.0.zip?download=true). To update the refreshed 2.2.2 build, close Ilaria RVC, extract the [manual patch](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.3.0/ILARIA_RVC-2.3.0-manual.zip?download=true) into its installation folder, replace existing files, and reopen the app.

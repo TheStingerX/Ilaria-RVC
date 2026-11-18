@@ -50,6 +50,8 @@ Extract the Windows package, then open `ILARIA_RVC.bat` for normal use or
 `ILARIA_RVC_LOGS.bat` to see the console. The default address is `http://127.0.0.1:6969`.
 In an existing installation, open **Other → Update Ilaria RVC** to check for updates.
 
+On the refreshed 2.2.2 build with PyTorch 2.10, open **Other → Update Ilaria RVC** and install **2.2.2.1**. After restart, check again and install **2.3.0**. The 2.2.2.1 bridge updates the installer so it can verify and install the extra files in 2.3.0.
+
 For a fresh Windows installation or an upgrade from 2.2.1 and earlier, use the [full NVIDIA Windows ZIP](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.3.0/ILARIA_RVC-2.3.0.zip?download=true). To update the refreshed 2.2.2 build, close Ilaria RVC, extract the [manual patch](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.3.0/ILARIA_RVC-2.3.0-manual.zip?download=true) into its installation folder, replace existing files, and reopen the app. · [Changelog](CHANGELOG.md)
 
 ## Windows CUDA 12.8 runtime

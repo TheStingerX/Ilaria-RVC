@@ -31,10 +31,11 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit, unquote
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 import uuid
+from importlib.metadata import PackageNotFoundError, version as package_version
 import zipfile
 
 CURRENT_VERSION = '2.3.0'
-MANIFEST_URL = 'https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/version.json'
+MANIFEST_URL = 'https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/version-v2.json'
 LEGACY_MANAGED_FILES = (
     'ILARIA_RVC.py', 'ILARIA_RVC.bat',
     'ilaria_model_import.py', 'ilaria_model_merge.py', 'ilaria_model_info.py',
@@ -47,6 +48,7 @@ LEGACY_MANAGED_FILES = (
     'ilaria_updater.py', 'ilaria_launcher.py', 'ilaria_version.json',
 )
 MANAGED_FILES = tuple('ilaria/' + name if '/' not in name and name.startswith('ilaria_') else name for name in LEGACY_MANAGED_FILES)
+EXTENDED_MANAGED_FILES = {'infer/lib/jit/get_synthesizer.py', 'infer/modules/onnx/export.py'}
 MAX_MANIFEST_BYTES = 256 * 1024
 MAX_ARCHIVE_BYTES = 512 * 1024 * 1024
 MAX_EXTRACTED_BYTES = 1024 * 1024 * 1024
@@ -83,7 +85,8 @@ def _release_names(files):
     else:
         raise UpdaterError('The release is missing required program files. Older updaters need the layout migration first.')
     extras = set(files) - set(base)
-    if any(not isinstance(name, str) or not re.fullmatch(pattern, name) for name in extras):
+    allowed = EXTENDED_MANAGED_FILES if version.startswith('ilaria/') else set()
+    if any(not isinstance(name, str) or (name not in allowed and not re.fullmatch(pattern, name)) for name in extras):
         raise UpdaterError('A release file is outside the supported ILARIA RVC program paths.')
     return tuple(name for name in base if name != version) + tuple(sorted(extras)) + (version,)
 
@@ -297,6 +300,14 @@ def check_update(root):
                else 'Check complete: no newer version is available. You are using version %s.' % installed)
     if available and not compatible:
         message = 'This update requires ILARIA RVC %s or newer. Install a compatible base first.' % manifest['minimum_version']
+    if available and compatible and installed == '2.2.2.1':
+        try:
+            torch_release = version_tuple(package_version('torch').split('+', 1)[0])
+        except (PackageNotFoundError, UpdaterError):
+            torch_release = ()
+        if torch_release < (2, 10, 0):
+            compatible = False
+            message = 'Download the full 2.3.0 Windows ZIP from Hugging Face to update your PyTorch runtime.'
     return {'available': available and compatible, 'installed': installed,
             'version': manifest['version'], 'changelog': manifest['changelog'],
             'manifest': manifest, 'message': message}
