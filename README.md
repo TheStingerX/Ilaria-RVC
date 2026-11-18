@@ -50,11 +50,13 @@ Extract the Windows package, then open `ILARIA_RVC.bat` for normal use or
 `ILARIA_RVC_LOGS.bat` to see the console. The default address is `http://127.0.0.1:6969`.
 In an existing installation, open **Other → Update Ilaria RVC** to check for updates.
 
-## Windows with NVIDIA RTX 50-series GPUs
+## Windows CUDA 12.8 runtime
 
-On Windows, Ilaria RVC 2.2 detects NVIDIA GeForce RTX 50-series GPUs when you start the regular `ILARIA_RVC.bat` or `ILARIA_RVC_LOGS.bat`. The first launch needs Internet and space for the CUDA 12.8 runtime and its downloads. Setup checks CUDA on the detected GPU before opening the Web UI. If setup fails, see `rtx50-runtime-install.log` in the Ilaria RVC folder.
+The Windows build uses a single bundled PyTorch 2.7.1+cu128 runtime for NVIDIA GPUs. Extract the full package to a new folder and run `ILARIA_RVC.bat` or `ILARIA_RVC_LOGS.bat`.
 
-The compatible runtime is reused on subsequent launches. Installations without a Blackwell GPU continue using their bundled runtime.
+On PCs with only Maxwell, Pascal or Volta GPUs, the launcher uses PyTorch 2.0.0 with CUDA 11.8. On first use it downloads and verifies that runtime in `runtime-cu118`. Installation progress is recorded in `cuda118-runtime-install.log`.
+
+To build a runtime for packaging, use the Windows Python 3.9 portable interpreter to run `ilaria/ilaria_install_rtx50.py <release-folder>`. It writes `runtime` into the release folder after checking CUDA forward and backward execution. Package that runtime with the program and assets.
 
 ## Work on the source
 

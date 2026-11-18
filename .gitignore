@@ -39,3 +39,7 @@ __pycache__/
 /tools/aria2c/
 /tools/flag.txt
 .tool-versions
+
+/runtime-cu118/
+/.runtime-cu118-build-*/
+/cuda118-runtime-install.log

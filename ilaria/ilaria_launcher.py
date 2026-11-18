@@ -159,11 +159,9 @@ def run(root, arguments, python_executable=None):
         restarted = ((root / "ilaria/ilaria_release_payload.py").is_file()
                      or bool(migration and migration["phase"] == "pending"))
         if os.name == 'nt':
-            from ilaria_install_rtx50 import ensure_runtime
-            cuda128_python = ensure_runtime(root)
-            if cuda128_python is not None:
-                python_executable = str(cuda128_python)
-                os.environ['USE_LIBUV'] = '0'
+            from ilaria_install_rtx50 import select_windows_runtime
+            python_executable = select_windows_runtime(root)
+            os.environ['USE_LIBUV'] = '0'
         suppress_browser = False
         while True:
             options = list(arguments)

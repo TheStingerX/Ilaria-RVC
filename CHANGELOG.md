@@ -214,3 +214,9 @@ Model library
 ## 2.2.1
 
 - Added a playback volume slider to the shared waveform player for audio inputs, results and previews.
+
+### Updated Windows package
+
+- Bundles PyTorch 2.7.1 with CUDA 12.8. RTX 50 users can start from the usual launcher immediately after extraction, with a compatible NVIDIA driver.
+- On PCs with only Maxwell, Pascal or Volta GPUs, the launcher downloads and verifies PyTorch 2.0.0 with CUDA 11.8 on first use and reuses it on subsequent starts.
+- Kaggle continues to use its separate Linux runtime.
