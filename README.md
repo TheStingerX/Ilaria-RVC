@@ -1,4 +1,4 @@
-# Ilaria RVC 2.4.0
+# Ilaria RVC 2.4.1
 
 The full Windows ZIP is for NVIDIA GPUs and includes Python 3.10, PyTorch 2.10, and CUDA 12.8.
 
@@ -16,6 +16,10 @@ The full Windows ZIP is for NVIDIA GPUs and includes Python 3.10, PyTorch 2.10, 
 | `app/logs/` | Prepared training data, logs, and checkpoints |
 | `docs/` | Changelog, feature overview, and upstream documentation |
 | `notebooks/` | Kaggle, Google Colab, and Lightning AI Studio notebooks |
+
+## Updating from 2.4.0
+
+Open **Other → Update Ilaria RVC** to install 2.4.1 when it is available. Kokoro can be installed separately in **Inference → TTS**.
 
 ## Upgrading from 2.3.0
 

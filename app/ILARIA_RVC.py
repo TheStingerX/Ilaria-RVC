@@ -33,6 +33,7 @@ from dotenv import load_dotenv
 now_dir = os.getcwd()
 sys.path.append(now_dir)
 load_dotenv()
+os.environ.setdefault("rmvpe_root", str(_ilaria_install_root / "assets" / "rmvpe"))
 from infer.modules.vc.modules import VC
 from ilaria_inference_pipeline import preload_rmvpe, release_rmvpe
 from i18n.i18n import I18nAuto
@@ -57,6 +58,8 @@ sys.path.append(now_dir)
 load_dotenv()
 
 logging.getLogger("numba").setLevel(logging.WARNING)
+for hubert_logger in ("fairseq.tasks.hubert_pretraining", "fairseq.models.hubert.hubert"):
+    logging.getLogger(hubert_logger).setLevel(logging.WARNING)
 
 class QuietModelLoading(logging.Filter):
     def filter(self, record):

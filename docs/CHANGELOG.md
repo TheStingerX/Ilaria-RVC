@@ -254,3 +254,11 @@ For a fresh Windows installation or an upgrade from 2.2.1 and earlier, use the [
 - Repaired pip and included pywin32 in the Windows runtime. The full ZIP includes Python 3.10, PyTorch 2.10 and CUDA 12.8.
 
 [Download the 2.4.0 Windows ZIP](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.4.0/ILARIA_RVC-2.4.0.zip?download=true). Extract it to a new folder and run `RUN_ILARIA_RVC.bat`.
+
+## 2.4.1
+
+- Added optional Kokoro v1.0 text-to-speech with 54 voices, including Sara and Nicola in Italian. Install it from Inference → TTS → Kokoro (local) when you need it.
+- Explained the requirements for Microsoft Edge, Windows voices, ElevenLabs and Kokoro in the TTS tab.
+- Fixed the default RMVPE weight path and hid verbose HuBERT INFO messages while preserving warnings and errors.
+
+Requires Ilaria RVC 2.4.0. Install from **Other → Update Ilaria RVC** when the update is available. Kokoro downloads separately and uses about 528 MB when installed.

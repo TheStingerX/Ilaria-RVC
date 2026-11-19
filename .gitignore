@@ -20,3 +20,5 @@ __pycache__/
 *.exe
 /app/assets/hubert/embedders/
 /app/assets/pretrained_custom/
+/app/assets/tts/kokoro/
+/app/assets/tts/.kokoro-*/

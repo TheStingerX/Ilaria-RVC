@@ -9,6 +9,8 @@ import sys
 import tempfile
 import time
 
+from ilaria_tts_kokoro import KOKORO, VOICES as KOKORO_VOICES
+
 EDGE = "Microsoft Edge (online)"
 WINDOWS = "Windows voices (offline)"
 ELEVENLABS = "ElevenLabs (online)"
@@ -20,6 +22,9 @@ LANGUAGES = {item["Locale"].split("-")[0]: item["Language"] for item in DEFAULT_
 
 
 def language(voice):
+    name = voice["ShortName"]
+    if name in KOKORO_VOICES:
+        return name.rsplit(" (", 1)[1][:-1]
     locale = voice["Locale"]
     return LANGUAGES.get(locale.split("-")[0], locale)
 
@@ -45,6 +50,11 @@ def _edge(request, timeout):
 
 
 def voices(engine, refresh=False, api_key=None):
+    if engine == KOKORO:
+        return [
+            {"ShortName": name, "Locale": locale, "Gender": gender}
+            for name, (_, locale, gender) in KOKORO_VOICES.items()
+        ]
     if engine == ELEVENLABS:
         from ilaria_tts_elevenlabs import list_voices
 
@@ -103,6 +113,12 @@ def generate(root, convert, text, engine, voice, rate, volume, source_pitch,
     if not text or len(text) > MAX_TEXT:
         yield "Enter between 1 and 10,000 characters.", None, None, None
         return
+    if engine == KOKORO:
+        from ilaria_tts_kokoro import installed
+
+        if not installed(root):
+            yield "Click Download and install Kokoro before generating speech.", None, None, None
+            return
     if not voice:
         yield "Select a source voice. Refresh voices to see available choices.", None, None, None
         return
@@ -130,6 +146,10 @@ def generate(root, convert, text, engine, voice, rate, volume, source_pitch,
                 raw = Path(scratch) / "source.mp3"
                 synthesize(text, voice, api_key, eleven_model, raw)
                 _encode(root, raw, source_path, "pcm_s16le")
+            elif engine == KOKORO:
+                from ilaria_tts_kokoro import synthesize
+
+                synthesize(root, text, voice, rate, volume, source_path)
             elif engine == WINDOWS:
                 from ilaria_tts_windows import synthesize
 
@@ -198,6 +218,8 @@ def build_tab(gr, root, model, convert, track, pitch_methods, index_paths):
             message = "Enter an ElevenLabs API key and click Refresh voices."
         elif engine == ELEVENLABS and not catalog and not message.startswith("Could not"):
             message = "No voices are available for this ElevenLabs account."
+        if engine == KOKORO and not refresh:
+            locale, gender = ALL_LANGUAGES, ALL_GENDERS
         locales = [ALL_LANGUAGES] + sorted({language(item) for item in catalog})
         genders = [ALL_GENDERS] + sorted({item["Gender"] for item in catalog})
         locale = locale if locale in locales else ALL_LANGUAGES
@@ -207,7 +229,7 @@ def build_tab(gr, root, model, convert, track, pitch_methods, index_paths):
                 catalog_controls(catalog, locale, gender, voice),
                 gr.Slider.update(visible=engine == EDGE), message,
                 gr.update(visible=engine == ELEVENLABS), gr.update(visible=engine != ELEVENLABS),
-                message)
+                message, gr.update(visible=engine == KOKORO))
 
     def generate_audio(text, engine, voice, rate, volume, source_pitch, apply_rvc,
                        selected_model, speaker, semitones, method, index,
@@ -235,13 +257,24 @@ def build_tab(gr, root, model, convert, track, pitch_methods, index_paths):
                 gr.update(value=converted, visible=True),
             )
 
+    def install_kokoro():
+        from ilaria_tts_kokoro import install
+
+        try:
+            yield from install(root)
+        except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
+            yield f"Kokoro installation failed. {error}"
+
     with gr.TabItem("TTS", elem_id="tts-tab"):
         gr.Markdown(
             "### Text to speech\n"
-            "Write or import text, choose a source voice, then generate speech. "
-            "The full Edge catalog is available immediately. Use **Language** to filter it. Enable RVC conversion to use the **Voice Model** selected above.\n\n"
-            "**Microsoft Edge** sends the text to Microsoft's online service. "
-            "**Windows voices** use installed desktop voices and work offline.",
+            "Write or import text, select a **Speech engine** and **Source voice**, then click **Generate speech**. "
+            "Use **Language** to filter the voice list. Enable RVC conversion to use the **Voice Model** selected above.\n\n"
+            "- **Microsoft Edge** uses Microsoft's online service. Its voice catalog is ready to browse.\n"
+            "- **Windows voices** use the desktop voices installed on your PC and work offline.\n"
+            "- **ElevenLabs** requires Internet access and an API key. It uses your account credits.\n"
+            "- **Kokoro** offers 54 voices and runs offline on your CPU after a one-time download. "
+            "Select **Kokoro (local)** and click **Download and install Kokoro** to get started.",
             elem_id="tts-intro",
         )
         text = gr.Textbox(label="Text to speak", lines=5, max_lines=12,
@@ -251,7 +284,7 @@ def build_tab(gr, root, model, convert, track, pitch_methods, index_paths):
             import_button = gr.Button("Load text")
         catalog = gr.State(DEFAULT_VOICES)
         with gr.Row():
-            engine = gr.Radio([EDGE, WINDOWS, ELEVENLABS], value=EDGE, label="Speech engine")
+            engine = gr.Radio([EDGE, WINDOWS, ELEVENLABS, KOKORO], value=EDGE, label="Speech engine")
             locale = gr.Dropdown([ALL_LANGUAGES] + sorted({language(item) for item in DEFAULT_VOICES}), value=ALL_LANGUAGES,
                                  label="Language")
             gender = gr.Dropdown([ALL_GENDERS, "Female", "Male"], value=ALL_GENDERS,
@@ -266,6 +299,10 @@ def build_tab(gr, root, model, convert, track, pitch_methods, index_paths):
             manual_voice = gr.Textbox(label="ElevenLabs Voice ID (optional)",
                                       placeholder="Paste a Voice ID if the API key cannot list voices")
             eleven_model = gr.Dropdown(list(MODELS), value=MODELS[0], label="ElevenLabs model")
+        with gr.Column(visible=False) as kokoro_settings:
+            gr.Markdown("Kokoro runs on the CPU. Model and voice files total about **354 MB**. Kokoro uses about **528 MB** once installed, including dependencies. Synthesis works offline after installation.")
+            kokoro_install = gr.Button("Download and install Kokoro", variant="primary")
+            kokoro_status = gr.Textbox(label="Kokoro setup", interactive=False)
         with gr.Row():
             voice = gr.Dropdown(voice_choices(DEFAULT_VOICES, ALL_LANGUAGES, ALL_GENDERS),
                                 value="it-IT-ElsaNeural", label="Source voice", interactive=True)
@@ -298,9 +335,10 @@ def build_tab(gr, root, model, convert, track, pitch_methods, index_paths):
             rvc_audio = gr.Audio(label="RVC Result", interactive=False)
         log = gr.Textbox(label="TTS+RVC Log", lines=3, max_lines=9, interactive=False)
 
+        kokoro_install.click(track(install_kokoro, "Kokoro installation"), [], [kokoro_status])
         import_button.click(read_text, [upload, text], [text, log], show_progress=False)
         catalog_inputs = [engine, catalog, locale, gender, voice, api_key]
-        catalog_outputs = [catalog, locale, gender, voice, source_pitch, log, eleven_settings, speech_settings, eleven_status]
+        catalog_outputs = [catalog, locale, gender, voice, source_pitch, log, eleven_settings, speech_settings, eleven_status, kokoro_settings]
         engine.change(lambda *args: load_catalog(*args, False), catalog_inputs, catalog_outputs)
         refresh_catalog = lambda *args: load_catalog(*args, True)
         refresh.click(refresh_catalog, catalog_inputs, catalog_outputs)
