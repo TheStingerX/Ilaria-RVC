@@ -1,22 +1,24 @@
 # Ilaria RVC 2.4.0
 
-Versione Windows per GPU NVIDIA. Nello ZIP completo è incluso il runtime Python 3.10 con PyTorch 2.10 e CUDA 12.8.
+The full Windows ZIP is for NVIDIA GPUs and includes Python 3.10, PyTorch 2.10, and CUDA 12.8.
 
-## Avvio
+## Getting started
 
-1. Estrai lo ZIP in una nuova cartella.
-2. Avvia `RUN_ILARIA_RVC.bat` oppure `RUN_ILARIA_RVC_LOGS.bat` per vedere la console.
-3. Importa i modelli dalla Web UI, oppure aggiungi i file `.pth` e `.index` alla cartella `models/` organizzandoli per modello.
+1. Extract the full ZIP to a new folder.
+2. Run `RUN_ILARIA_RVC.bat`. To show the console, run `RUN_ILARIA_RVC_LOGS.bat`.
+3. Import voice models from the Web UI, or place each model's `.pth` and matching `.index` files in its own subfolder under `models/`.
 
-| Cartella | Contenuto |
+| Folder | Contents |
 | --- | --- |
-| `models/` | Libreria di modelli vocali e index |
-| `app/` | Programma, configurazioni, dipendenze e risorse audio |
-| `app/datasets/` | Audio per il training |
-| `app/logs/` | Dati di training, log e checkpoint |
-| `docs/` | Changelog, funzionalità e documentazione upstream |
-| `notebooks/` | Kaggle, Google Colab e Lightning AI Studio |
+| `models/` | Voice models and retrieval indexes |
+| `app/` | Application, runtime, configuration, and audio assets |
+| `app/datasets/` | Audio for training |
+| `app/logs/` | Prepared training data, logs, and checkpoints |
+| `docs/` | Changelog, feature overview, and upstream documentation |
+| `notebooks/` | Kaggle, Google Colab, and Lightning AI Studio notebooks |
 
-Per passare dalla 2.3.0 a questa struttura usa lo ZIP completo in una nuova cartella. I vecchi aggiornamenti automatici usano il layout precedente. Conserva l'installazione precedente mentre trasferisci i dati.
+## Upgrading from 2.3.0
 
-[Changelog](docs/CHANGELOG.md) · [Licenza](LICENSE.md) · [Come contribuire](CONTRIBUTING.md) · [Licenza upstream](docs/upstream/LICENSE) · [Licenze di terze parti](docs/upstream/THIRD-PARTY-NOTICES.txt)
+Install the full 2.4.0 ZIP in a new folder. The 2.3.0 updater uses the previous folder layout. Keep your existing installation as a backup while transferring your models and training data.
+
+[Download the Windows ZIP](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.4.0/ILARIA_RVC-2.4.0.zip?download=true) · [Changelog](docs/CHANGELOG.md) · [License](LICENSE.md) · [Contributing](CONTRIBUTING.md) · [Upstream license](docs/upstream/LICENSE) · [Third-party notices](docs/upstream/THIRD-PARTY-NOTICES.txt)
