@@ -98,19 +98,21 @@ def save_feature_embedder(folder, name):
 
 from ilaria_hubert_assets import (
     INFERENCE_EMBEDDERS, PORTUGUESE_HUBERT, custom_embedder_names, install_custom_embedder,
-    inference_embedder_directory, download_portuguese_hubert,
+    inference_embedder_directory, download_portuguese_hubert, inference_embedder_installed,
 )
 
 
 def training_embedder_choices(root, version):
     if version != "v2":
         return ["contentvec"]
-    return ["contentvec", "spin-v2", *("custom:" + name for name in custom_embedder_names(root))]
+    return [*INFERENCE_EMBEDDERS, *("custom:" + name for name in custom_embedder_names(root))]
 
 
 def validate_training_embedder(root, name, version):
     if name not in training_embedder_choices(root, version):
-        raise ValueError("Choose an installed training embedder. Custom HuBERT requires RVC v2.")
+        raise ValueError("Choose a supported training embedder. Optional embedders require RVC v2.")
+    if name != "contentvec" and not inference_embedder_installed(root, name):
+        raise ValueError(f"{name} is not installed. Download it from Other → Download embedders first.")
 
 
 def load_inference_embedder(config, embedder_model="contentvec"):

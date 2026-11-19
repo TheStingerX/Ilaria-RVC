@@ -1,7 +1,7 @@
 # ♡ Ilaria RVC ♡
 
 Ilaria RVC is a Windows voice conversion and training app based on Mainline RVC.
-This repository contains the source for version **2.3.0**.
+This repository contains the source for version **2.4.0**.
 
 ## Features added since Mainline RVC
 
@@ -46,17 +46,25 @@ This repository contains the source for version **2.3.0**.
 ## Use Ilaria RVC
 
 Get the Windows package from [Ilaria RVC on Hugging Face](https://huggingface.co/TheStinger/Ilaria_RVC).
-Extract the Windows package, then open `ILARIA_RVC.bat` for normal use or
-`ILARIA_RVC_LOGS.bat` to see the console. The default address is `http://127.0.0.1:6969`.
+Extract the Windows package, then open `RUN_ILARIA_RVC.bat` for normal use or
+`RUN_ILARIA_RVC_LOGS.bat` to see the console. The default address is `http://127.0.0.1:6969`.
 In an existing installation, open **Other → Update Ilaria RVC** to check for updates.
 
 On the refreshed 2.2.2 build with PyTorch 2.10, open **Other → Update Ilaria RVC** and install **2.2.2.1**. After restart, check again and install **2.3.0**. The 2.2.2.1 bridge updates the installer so it can verify and install the extra files in 2.3.0.
 
-For a fresh Windows installation or an upgrade from 2.2.1 and earlier, use the [full NVIDIA Windows ZIP](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.3.0/ILARIA_RVC-2.3.0.zip?download=true). To update the refreshed 2.2.2 build, close Ilaria RVC, extract the [manual patch](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.3.0/ILARIA_RVC-2.3.0-manual.zip?download=true) into its installation folder, replace existing files, and reopen the app. · [Changelog](CHANGELOG.md)
+For the reorganized 2.4.0 Windows layout, use the [full NVIDIA Windows ZIP](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.4.0/ILARIA_RVC-2.4.0.zip?download=true). For the previous 2.3.0 release, to update the refreshed 2.2.2 build, close Ilaria RVC, extract the [manual patch](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.3.0/ILARIA_RVC-2.3.0-manual.zip?download=true) into its installation folder, replace existing files, and reopen the app. · [Changelog](CHANGELOG.md)
+
+## Notebooks
+
+- [Kaggle](notebooks/Ilaria-RVC-Kaggle.ipynb)
+- [Google Colab](notebooks/Ilaria-RVC-Colab.ipynb)
+- [Lightning AI Studio](notebooks/Ilaria-RVC-LightningAI.ipynb)
+
+The [Windows layout branch](https://github.com/TheStingerX/Ilaria-RVC/tree/windows-layout) contains the reorganized source used by the full Windows download. The flat checkout on `main` supports existing Kaggle notebooks.
 
 ## Windows CUDA 12.8 runtime
 
-The Windows build uses a single bundled Python 3.10 and PyTorch 2.10.0+cu128 runtime for NVIDIA GPUs. Extract the full package to a new folder and run `ILARIA_RVC.bat` or `ILARIA_RVC_LOGS.bat`.
+The Windows build uses a single bundled Python 3.10 and PyTorch 2.10.0+cu128 runtime for NVIDIA GPUs. Extract the full package to a new folder and run `RUN_ILARIA_RVC.bat` or `RUN_ILARIA_RVC_LOGS.bat`.
 
 On PCs with only Maxwell, Pascal or Volta GPUs, the launcher uses PyTorch 2.10.0 with CUDA 12.6. On first use it downloads and verifies that runtime in `runtime-cu126`. Installation progress is recorded in `cu126-runtime-install.log`.
 
@@ -88,7 +96,7 @@ entry points and dependency files are retained for reference in
 
 ## Credits and license
 
-- Based on [Retrieval-based Voice Conversion WebUI](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI). See the [MIT license](LICENSE) and the original third-party notices.
+- Based on [Retrieval-based Voice Conversion WebUI](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI). See the [Ilaria RVC license](LICENSE.md), [upstream MIT license](docs/LICENSE), and [third-party notices](docs/THIRD-PARTY-NOTICES.txt).
 - Includes adaptations from [Applio](https://github.com/IAHispano/Applio) and [Redpanda-vc](https://github.com/redpanda343/Redpanda-vc), with notices in the corresponding source files.
 - FCPE uses [TorchFCPE](https://pypi.org/project/torchfcpe/0.0.4/). License notices for vendored Python packages accompany their source.
 - The Audio Analyzer extends [Ilaria Audio Analyzer](https://github.com/TheStingerX/Ilaria-Audio-Analyzer).

@@ -782,12 +782,10 @@ def extract_f0_feature(gpus, n_p, f0method, if_f0, exp_dir, version19, gpus_rmvp
     if precision == "FP16" and not torch.cuda.is_available():
         yield "FP16 requires a CUDA GPU. Select FP32 in Training Settings & Other."
         return
-    from ilaria_embedders import ensure_embedder, check_feature_embedder, save_feature_embedder, validate_training_embedder
+    from ilaria_embedders import check_feature_embedder, save_feature_embedder, validate_training_embedder
     try:
         check_feature_embedder(pathlib.Path(now_dir)/"logs"/str(exp_dir), embedder_model, version19)
         validate_training_embedder(now_dir, embedder_model, version19)
-        if not embedder_model.startswith("custom:"):
-            yield from ensure_embedder(now_dir, embedder_model)
         save_feature_embedder(pathlib.Path(now_dir)/"logs"/str(exp_dir), embedder_model)
     except (OSError, ValueError) as error:
         yield "Feature Extraction error: " + str(error)
@@ -1362,7 +1360,7 @@ def _click_train(
             )
     if options["embedder_model"] == "spin-v2":
         opt = [line.replace("/logs/mute/3_feature", "/logs/mute_spin-v2/3_feature") for line in opt]
-    if options["embedder_model"].startswith("custom:"):
+    if options["embedder_model"] not in ("contentvec", "spin-v2"):
         mute_feature = f"{now_dir}/logs/mute/3_feature{fea_dim}/mute.npy"
         custom_mute = f"{now_dir}/logs/{exp_dir1}/mute_custom.npy"
         opt = [line.replace(mute_feature, custom_mute) for line in opt]
@@ -2839,6 +2837,7 @@ TUTORIAL_SECTIONS += (('27. Read index information', 'Index information is inclu
 
 TUTORIAL_SECTIONS += (('28. Vocoder, embedder, silence, pretrained models and training targets', 'Vocoder chooses the waveform decoder. HiFi-GAN keeps the original RVC decoder and supports the existing settings. RefineGAN is an alternative decoder: in this build it requires RVC v2, 32 kHz and Pitch Guidance enabled. It uses a different discriminator and mel objective. Select a compatible RefineGAN pretrained G/D pair or explicitly choose None to train from scratch. An incompatible pretrained model is rejected; it cannot be converted simply by renaming it. RefineGAN is not a promise of better quality or faster training. Use a new Model Name when changing vocoders.\n\nEmbedder Model chooses the speech-content representation, not the voice or pitch extractor. contentvec uses the existing hubert_base.pt. spin-v2 downloads its fairseq-compatible weights once (about 361 MiB), checks their SHA-256, and uses them for both feature extraction and inference. The embedder choice is stored in exported models and previews. Never reuse features or an index from another embedder: choose a new Model Name, then Process Data, Feature Extraction and Train Index again. Old models without embedder metadata default to contentvec. Both embedders can have the same feature dimension; equal dimensions do not establish compatibility.\n\nSilent training files adds silent examples to the training file list. Default 2; choose 0 to 10. These are repeated silence entries, not recordings added to your dataset folder. spin-v2 silence features are extracted with spin-v2 as well. Changing the silent count changes the training data and is rejected when resuming an existing incompatible checkpoint.\n\nTraining Target offers two alternatives. Epochs stops after Total Epochs (default 300). Steps stops after the cumulative Total Steps (default 10,000), including partway through an epoch. One step is one generator/discriminator batch update per training rank, not one audio file. Resuming uses the cumulative count: a target of 10,000 means finish at 10,000, not train 10,000 more. A saved partial epoch resumes at the correct remaining batch. Cache data to GPU must be No in Steps mode and when resuming a partial epoch. Save frequency and preview frequency still count complete epochs; reaching the final step always saves and exports. Step progress and ETA use measured step time, while completed epochs remain accurately counted.\n\nPretrained model is one menu: choose Auto, None or a locally installed complete G/D pair. Auto selects the original pretrained for the current sample rate, pitch setting and RVC version; it does not provide a default RefineGAN pretrained. None explicitly starts without a pretrained. Refresh pretrained list scans installed pairs under assets; it does not download them. Both G and D must exist and match the selected architecture. Matching file names alone do not prove compatibility; actual tensor shapes are checked by the trainer. A saved model checkpoint takes priority when resuming; switching pretrains does not reset that model.\n\nIndex Algorithm affects index creation, not the neural PTH trainer. Auto keeps the existing large-dataset policy: above 200,000 feature vectors it tries MiniBatchKMeans with up to 10,000 centers before FAISS indexing. Faiss builds an IVF Flat index using all extracted rows, without that reduction. KMeans explicitly reduces sufficiently large feature sets to representative centers before building the FAISS index; tiny sets are kept rather than clustered into invalid sizes. Clustering can reduce index size and index-building cost, but can lose detail and does not guarantee better conversion. KMeans is useful to consider for large datasets. All three ultimately produce a FAISS .index file. The queue saves these choices independently for every job.'),)
 
+ILARIARVC_CSS += "\n#training-asset-recommendation, #embedder-asset-recommendation, #pretrained-asset-recommendation { padding: 12px 18px !important; margin: 8px 0 !important; line-height: 1.6 !important; }\n"
 ILARIARVC_CSS += '\n#training-options-help { padding: 16px 22px !important; margin: 10px 0 !important; box-sizing: border-box; text-align: center !important; line-height: 1.65 !important; }\n'
 
 TUTORIAL_SECTIONS += (('29. Additional pitch extraction algorithms', 'RMVPE remains the default pitch extractor and is a good starting point. FCPE estimates pitch using TorchFCPE. Swift and Beatrice use additional models adapted from Redpanda-vc. Swift uses SwiftF0 0.1.2 on CPU for compatibility with the bundled ONNX Runtime; it does not require replacing your CUDA libraries. Beatrice uses its own pitch estimator and runs on the selected inference device, or CPU during training extraction. Swift and Beatrice download their model files once if missing. FCPE uses its installed model. Parselmouth is the full name for the existing pm autocorrelation method, not a different voice model. These choices are available for training features, single and batch inference, and training previews. Keep RMVPE for an initial comparison, then listen to the same clip with other algorithms. Different extractors can make different octave or voicing errors; no method guarantees the best result for every recording.'),)
@@ -2854,7 +2853,8 @@ ILARIARVC_CSS += '\n.gradio-container #ilaria-main-tabs #other-tab #pretrained-d
 TUTORIAL_SECTIONS += (('32. Download pretrained pairs', 'Open Other > Download pretrained models, directly below the voice-model downloader. This tool downloads generator/discriminator pretrained pairs for training, not voice models for inference. Paste a public Hugging Face repository or folder page, a direct pretrained ZIP, or a direct G .pth link. For a direct file, it looks for the matching D beside it. You may paste the second direct link in Matching D .pth link when necessary; keep the two files from the same compatible pair.\n\nClick Download pretrained pair and follow Pretrained Download Log. Download, extraction and installation show progress. If a repository contains several pairs or ZIPs, the log lists direct links: choose the pair you want rather than relying on a random file. ZIPs may contain several complete pairs in separate folders; the tool installs complete G/D pairs and leaves unrelated files out.\n\nFiles go to assets/pretrained_custom/<package>, separate from inference weights and personal training logs. When the log confirms 100%, open Training Settings & Other and click Refresh pretrained list in the compact pretrained block. Select the installed entry: the single dropdown chooses G and D together. Keep vocoder, sample rate, RVC version and pitch settings compatible with the pair. A G/D filename match is not a tensor compatibility test: strict checks still occur when the trainer loads the pair.\n\nExisting different files are kept and reported as a conflict. Failed or interrupted downloads do not expose half-installed pairs in the menu. A single inference .pth with a .index is not a training pretrained pair and belongs in the voice-model downloader above. The pretrained downloader does not read checkpoint Python objects or promise a particular voice quality. For offline installation, place both files together under assets/pretrained_custom/<name> and refresh the training selector.'),)
 
 ILARIARVC_CSS += '\n.gradio-container #ilaria-main-tabs #recommended-pretraineds { background: #62416B !important; border: 2px solid #D8B4FE !important; border-radius: 12px !important; margin: 12px 0 !important; padding: 12px !important; }\n#recommended-pretrained-help { padding: 12px 20px !important; text-align: center !important; line-height: 1.65 !important; }\n#recommended-pretrained-details { padding: 12px 18px !important; color: #FFFFFF !important; }\n#recommended-pretrained-details th, #recommended-pretrained-details td { color: #FFFFFF !important; border: 1px solid #D8B4FE !important; padding: 8px 12px !important; }\n'
-TUTORIAL_SECTIONS += (('33. Recommended pretrained downloads', 'Other > Download pretrained models ends with Recommended pretraineds, closed by default. The alphabetical list contains all supplied families and 35 sample-rate/vocoder/embedder variants. Choose one entry, check Sample rate and the G/D source links, then click Download selected pretrained (G + D). Both files install together through the same pretrained downloader. Open Training, refresh the pretrained list and choose the installed pair. No models download merely by opening this menu. Nanashi v1 is a pretrained family name, not a request to switch RVC architecture. RefineGAN variants at 40 or 44.1 kHz can be downloaded, but this build cannot train those RefineGAN sample rates. Keep their actual rate; do not rename a 40/44.1 kHz pretrained as 32 kHz. Unknown publisher metadata is shown as Not specified instead of guessed. Recommendations are the supplied catalog, not a quality ranking.'),)
+TRAINING_ASSET_RECOMMENDATION = '**Training recommendation**. For most models, start with Auto pretrained weights and the default ContentVec embedder. Third-party pretrained weights, especially older pairs, and optional embedders can reduce final voice quality if they are a poor match for your settings or dataset.'
+TUTORIAL_SECTIONS += (('33. Recommended pretrained downloads', 'Other > Download pretrained models ends with Recommended pretraineds, closed by default. The alphabetical list shows sample rates and architecture details where the publisher provides them. Choose one entry, check Sample rate and the G/D source links, then click Download selected pretrained (G + D). Both files install together through the same pretrained downloader. Open Training, refresh the pretrained list and choose the installed pair. No models download merely by opening this menu. Nanashi v1 is a pretrained family name, not a request to switch RVC architecture. RefineGAN variants at 40 or 44.1 kHz can be downloaded, but this build cannot train those RefineGAN sample rates. Keep their actual rate; do not rename a 40/44.1 kHz pretrained as 32 kHz. Unknown publisher metadata is shown as Not specified instead of guessed. Use the bundled defaults as your starting point.' + '\n\n' + TRAINING_ASSET_RECOMMENDATION),)
 
 TUTORIAL_SECTIONS += ((
     "34. Text to speech",
@@ -3101,13 +3101,32 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                     )
                 with gr.Row():
                     training_vocoder = gr.Radio(label="Vocoder", choices=["HiFi-GAN", "MRF HiFi-GAN", "RefineGAN"], value="HiFi-GAN", interactive=True)
-                    from ilaria_embedders import training_embedder_choices
+                    from ilaria_embedders import training_embedder_choices, validate_training_embedder
 
                     training_embedder = gr.Dropdown(
                         label="Embedder Model", choices=training_embedder_choices(now_dir, "v2"),
                         value="contentvec", interactive=True,
                     )
                     refresh_training_embedders = gr.Button("Refresh installed embedders")
+                training_embedder_availability = gr.Textbox(
+                    label="Embedder Availability", value="ContentVec is included.", interactive=False,
+                )
+
+                def describe_training_embedder(version, selected):
+                    try:
+                        validate_training_embedder(now_dir, selected, version)
+                    except ValueError as error:
+                        return str(error)
+                    return f"{selected} is installed."
+
+                training_embedder.change(
+                    describe_training_embedder, [version19, training_embedder], [training_embedder_availability],
+                    queue=False, show_progress=False,
+                )
+                refresh_training_embedders.click(
+                    describe_training_embedder, [version19, training_embedder], [training_embedder_availability],
+                    queue=False, show_progress=False,
+                )
                 with gr.Accordion("Custom Embedder", open=False, elem_id="training-embedder-upload"):
                     gr.Markdown("Upload the HuBERT weights and config.json for an RVC v2 model.")
                     training_embedder_folder = gr.Textbox(label="Folder Name")
@@ -3137,9 +3156,10 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                     [version19, training_embedder_folder, training_embedder_weights, training_embedder_config],
                     [training_embedder_status, training_embedder],
                 )
+                gr.Markdown(TRAINING_ASSET_RECOMMENDATION, elem_id="training-asset-recommendation")
                 silent_training_files = gr.Slider(minimum=0, maximum=10, value=2, step=1, label="Silent training files", interactive=True)
                 index_algorithm_control = gr.Radio(label="Index Algorithm", choices=["Auto", "Faiss", "KMeans"], value="Auto", interactive=True)
-                gr.Markdown("MRF HiFi-GAN requires RVC v2 and Pitch Guidance at 32, 40, or 48 kHz. RefineGAN requires RVC v2, 32 kHz and Pitch Guidance. Use a compatible pretrained pair or choose None to train from scratch. Spin-v2 downloads its embedder once; use a new Model Name when changing embedders. Steps is an alternative to epochs; Save frequency still counts epochs. Cache data to GPU must be No for Steps.", elem_id="training-options-help")
+                gr.Markdown("MRF HiFi-GAN requires RVC v2 and Pitch Guidance at 32, 40, or 48 kHz. RefineGAN requires RVC v2, 32 kHz and Pitch Guidance. Use a compatible pretrained pair or choose None to train from scratch. Download optional embedders from Other before feature extraction. Use a new Model Name when changing embedders. Steps is an alternative to epochs; Save frequency still counts epochs. Cache data to GPU must be No for Steps.", elem_id="training-options-help")
                 training_precision = gr.Radio(label="Training Precision", choices=["FP16", "FP32"], value="FP32", interactive=True)
                 with gr.Row():
                     with gr.Column(scale=1):
@@ -3727,6 +3747,7 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                 download_models_button.click(download_voice_models, [model_url], [download_models_log], show_progress=False, api_name="download_voice_model")
 
             with gr.Accordion("Download embedders", open=False, elem_id="embedder-download"):
+                gr.Markdown(TRAINING_ASSET_RECOMMENDATION, elem_id="embedder-asset-recommendation")
                 from ilaria_hubert_assets import (HUBERT_EMBEDDERS, PORTUGUESE_HUBERT, download_builtin_embedder,
                                                   download_portuguese_hubert, inference_embedder_installed)
                 from ilaria_embedders import ensure_embedder
@@ -3754,6 +3775,7 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                 embedder_button.click(download_selected_embedder, [embedder_choice], [embedder_log])
 
             with gr.Accordion("Download pretrained models", open=False, elem_id="pretrained-download"):
+                gr.Markdown(TRAINING_ASSET_RECOMMENDATION, elem_id="pretrained-asset-recommendation")
                 gr.Markdown("Paste a public Hugging Face repository, pretrained ZIP, or direct G .pth link. If needed, add its matching D link beside it. Both files are installed together in assets/pretrained_custom. Then open Training and click Refresh pretrained list.", elem_id="pretrained-download-help")
                 with gr.Row():
                     pretrained_download_url = gr.Textbox(label="Repository, pretrained ZIP or G .pth link", placeholder="https://huggingface.co/author/pretrained")
@@ -3765,7 +3787,7 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                     show_progress=False, api_name="download_training_pretrained")
 
                 with gr.Accordion("Recommended pretraineds", open=False, elem_id="recommended-pretraineds"):
-                    gr.Markdown("Choose a pretrained from the alphabetical list. Every variant shows its sample rate. Download installs both G and D together; then click Refresh pretrained list in Training. These are the supplied recommendations, not a ranking.", elem_id="recommended-pretrained-help")
+                    gr.Markdown("Choose a pretrained from the alphabetical list. Sample rates are shown when known. Download installs both G and D together; then click Refresh pretrained list in Training.", elem_id="recommended-pretrained-help")
                     from ilaria_pretrain_catalog import choices, describe
                     recommended_pretrained_choice = gr.Dropdown(label="Recommended pretrained and sample rate", choices=choices(), value=None, interactive=True)
                     recommended_pretrained_details = gr.Markdown(describe(None), elem_id="recommended-pretrained-details")
@@ -3927,7 +3949,10 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
             with gr.Column(elem_id="tutorial-content"):
                 gr.Markdown(TUTORIAL_INTRO)
                 for section_number, (section_title, section_text) in enumerate(TUTORIAL_SECTIONS):
-                    with gr.Accordion(section_title, open=False, elem_id="glossary-section-%s" % section_number):
+                    prefix, _, title = section_title.partition(". ")
+                    if not prefix.isdecimal():
+                        title = section_title
+                    with gr.Accordion(f"{section_number + 1}. {title}", open=False, elem_id="glossary-section-%s" % section_number):
                         gr.Markdown(section_text)
 
         with gr.TabItem("", elem_id="easter-egg-tab"):

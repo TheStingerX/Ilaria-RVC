@@ -37,8 +37,8 @@ def validate_options(root, name, rate, pitch, version, vocoder, embedder, silenc
     validate_pretrain_paths(generator, discriminator, root)
     folder = Path(root) / 'logs' / name
     check_feature_embedder(folder, embedder, version)
-    if embedder.startswith('custom:') and silence and not (folder / 'mute_custom.npy').is_file():
-        raise ValueError('Run Feature Extraction with your custom embedder first to prepare its silent features.')
+    if embedder not in ('contentvec', 'spin-v2') and silence and not (folder / 'mute_custom.npy').is_file():
+        raise ValueError('Run Feature Extraction with the selected embedder first to prepare its silent features.')
     if embedder == 'spin-v2' and silence:
         silent = Path(root) / 'logs' / 'mute_spin-v2' / ('3_feature256' if version == 'v1' else '3_feature768') / 'mute.npy'
         if not silent.is_file():

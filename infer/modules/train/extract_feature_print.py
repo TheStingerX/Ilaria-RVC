@@ -125,15 +125,15 @@ if os.access(model_path, os.F_OK) == False:
     )
     exit(0)
 from ilaria_embedders import (
-    inference_embedder_directory, load_embedder, validate_training_embedder,
+    load_inference_embedder, load_embedder, validate_training_embedder,
 )
 
 validate_training_embedder(os.getcwd(), args.embedder, version)
-custom_hubert = args.embedder.startswith("custom:")
-if custom_hubert:
-    from ilaria_hf_hubert import load_hf_hubert
+external_embedder = args.embedder not in ("contentvec", "spin-v2")
+if external_embedder:
+    from types import SimpleNamespace
 
-    model = load_hf_hubert(inference_embedder_directory(os.getcwd(), args.embedder), device, use_half)
+    model = load_inference_embedder(SimpleNamespace(device=device, is_half=use_half), args.embedder)
     normalize = False
 else:
     model, saved_cfg = load_embedder(os.getcwd(), args.embedder, device, use_half)
@@ -146,7 +146,7 @@ if args.embedder != "contentvec" and i_part == 0:
         value = model.extract_features(source=(silent.half() if use_half else silent.float()).to(device),
             padding_mask=torch.zeros_like(silent, dtype=torch.bool).to(device), output_layer=9 if version == "v1" else 12)[0]
         value = model.final_proj(value) if version == "v1" else value
-    if custom_hubert:
+    if external_embedder:
         silent_path = os.path.join(exp_dir, "mute_custom.npy")
     else:
         silent_folder = "logs/mute_spin-v2/3_feature%s" % (256 if version == "v1" else 768)

@@ -244,3 +244,13 @@ Model library
 On the refreshed 2.2.2 build with PyTorch 2.10, open **Other → Update Ilaria RVC** and install **2.2.2.1**. After restart, check again and install **2.3.0**. The 2.2.2.1 bridge updates the installer so it can verify and install the extra files in 2.3.0.
 
 For a fresh Windows installation or an upgrade from 2.2.1 and earlier, use the [full NVIDIA Windows ZIP](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.3.0/ILARIA_RVC-2.3.0.zip?download=true). To update the refreshed 2.2.2 build, close Ilaria RVC, extract the [manual patch](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.3.0/ILARIA_RVC-2.3.0-manual.zip?download=true) into its installation folder, replace existing files, and reopen the app.
+
+## 2.4.0
+
+- Reorganized the Windows package with RUN_ILARIA_RVC.bat, RUN_ILARIA_RVC_LOGS.bat, and a root-level models folder for voice weights and indexes. Application files and the Windows runtime are under app/.
+- Added English Google Colab and Lightning AI Studio notebooks alongside Kaggle.
+- Training lists all optional embedders and shows where to download missing weights. ContentVec is included by default.
+- Added Lyery's Legacy Core V1.5v2 pretrained pair for 32 kHz, HiFi-GAN and ContentVec, plus guidance on choosing pretrained weights and embedders.
+- Repaired pip and included pywin32 in the Windows runtime. The full ZIP includes Python 3.10, PyTorch 2.10 and CUDA 12.8.
+
+[Download the 2.4.0 Windows ZIP](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.4.0/ILARIA_RVC-2.4.0.zip?download=true). Extract it to a new folder and run `RUN_ILARIA_RVC.bat`.

@@ -54,6 +54,20 @@ CATALOG = tuple(sorted(
 ))
 
 
+LEGACY_CORE_V15V2 = {
+    'name': 'Legacy Core V1.5v2',
+    'repo': 'lyery/test',
+    'g': 'G_2333333 (6).pth',
+    'd': 'D_2333333 (6).pth',
+    'sample_rate': 32000,
+    'vocoder': 'HiFi-GAN',
+    'embedder': 'contentvec',
+    'variant': '',
+    'note': '',
+    'label': 'Legacy Core V1.5v2 | 32 kHz | HiFi-GAN | contentvec',
+}
+CATALOG = tuple(sorted((*CATALOG, LEGACY_CORE_V15V2), key=lambda entry: entry['label'].casefold()))
+
 def choices():
     return [entry['label'] for entry in CATALOG]
 
@@ -71,8 +85,9 @@ def describe(label):
     entry=entry_for(label)
     if entry is None:return 'Choose a recommended pretrained to see its sample rate and download files.'
     g,d=urls(entry)
+    sample_rate = '%g kHz' % (entry['sample_rate'] / 1000) if entry['sample_rate'] else 'Not specified'
     rows=['| Setting | Value |','| --- | --- |','| Pretrained | '+entry['name']+' |',
-          '| Sample rate | %g kHz |'%(entry['sample_rate']/1000),
+          '| Sample rate | '+sample_rate+' |',
           '| Vocoder | '+entry['vocoder']+' |','| Embedder | '+entry['embedder']+' |']
     if entry['variant']:rows.append('| Variant | '+entry['variant']+' |')
     rows+=['','[Generator G]('+g+') · [Discriminator D]('+d+') · [Publisher page](https://huggingface.co/'+entry['repo']+')']
