@@ -1,4 +1,4 @@
-# Ilaria RVC 2.4.2
+# Ilaria RVC 2.4.4
 
 The full Windows ZIP is for NVIDIA GPUs and includes Python 3.10, PyTorch 2.10, and CUDA 12.8.
 
@@ -27,7 +27,7 @@ BF16 uses mixed precision in the trainer. Feature extraction uses FP32 for BF16 
 
 ## Updating from 2.4.0 or 2.4.1
 
-Open **Other → Update Ilaria RVC** to install 2.4.2. Kokoro can be installed separately in **Inference → TTS**.
+Open **Other → Update Ilaria RVC** to install available updates. The 2.4.4 patch requires 2.4.2 or later. Kokoro can be installed separately in **Inference → TTS**.
 
 ## Upgrading from 2.3.0
 

@@ -268,3 +268,15 @@ Requires Ilaria RVC 2.4.0. Install from **Other → Update Ilaria RVC** when the
 - Fixed RMVPE inference when CUDA cuDNN rejects a GRU operation. RMVPE uses contiguous input and retries the GRU on CPU if cuDNN reports CUDNN_STATUS_NOT_SUPPORTED.
 
 Requires Ilaria RVC 2.4.0 or later. Install from **Other → Update Ilaria RVC** when the update is available.
+
+## 2.4.3
+
+- Added native BF16 mixed-precision training. Auto selects it on RTX 30, 40 and 50 series when all selected GPUs support it. Kaggle T4 defaults to FP16.
+- Manual FP16 and FP32 selections are remembered. Existing training keeps its saved precision unless changed explicitly. The Training Queue and PC training advisor use the new precision settings.
+- BF16 training keeps feature extraction in FP32 and preserves the RVC model export format.
+
+Requires Ilaria RVC 2.4.2.
+
+## 2.4.4
+
+- Removed the six Legacy Core pretrained download options from Lyery after the source files were taken down. Previously downloaded weights remain available for training.
