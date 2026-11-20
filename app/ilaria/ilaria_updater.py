@@ -34,7 +34,7 @@ import uuid
 from importlib.metadata import PackageNotFoundError, version as package_version
 import zipfile
 
-CURRENT_VERSION = '2.4.1'
+CURRENT_VERSION = '2.4.2'
 MANIFEST_URL = 'https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/version-v2.json'
 LEGACY_MANAGED_FILES = (
     'ILARIA_RVC.py', 'ILARIA_RVC.bat',

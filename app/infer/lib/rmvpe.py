@@ -171,7 +171,15 @@ class BiGRU(nn.Module):
         )
 
     def forward(self, x):
-        return self.gru(x)[0]
+        if torch.jit.is_scripting():
+            return self.gru(x.contiguous())[0]
+        return self._forward_with_fallback(x)
+
+    @torch.jit.unused
+    def _forward_with_fallback(self, x):
+        from ilaria.ilaria_rmvpe_gru import run_gru
+
+        return run_gru(self.gru, x)
 
 
 class ConvBlockRes(nn.Module):

@@ -27,7 +27,8 @@ _rmvpe_cached = None
 
 
 def _get_rmvpe(device, is_half):
-    from infer.lib.rmvpe import RMVPE
+    from infer.lib.rmvpe import BiGRU, RMVPE
+    from ilaria_rmvpe_gru import configure_rmvpe
 
     path = os.path.abspath(os.path.join(os.environ["rmvpe_root"], "rmvpe.pt"))
     if "privateuseone" in str(device):
@@ -38,6 +39,7 @@ def _get_rmvpe(device, is_half):
     with _rmvpe_lock:
         if _rmvpe_cached is None or _rmvpe_cached[0] != key:
             model = RMVPE(path, is_half=is_half, device=device)
+            configure_rmvpe(model.model, BiGRU)
             _rmvpe_cached = key, model
         return _rmvpe_cached[1]
 

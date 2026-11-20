@@ -262,3 +262,9 @@ For a fresh Windows installation or an upgrade from 2.2.1 and earlier, use the [
 - Fixed the default RMVPE weight path and hid verbose HuBERT INFO messages while preserving warnings and errors.
 
 Requires Ilaria RVC 2.4.0. Install from **Other → Update Ilaria RVC** when the update is available. Kokoro downloads separately and uses about 528 MB when installed.
+
+## 2.4.2
+
+- Fixed RMVPE inference when CUDA cuDNN rejects a GRU operation. RMVPE uses contiguous input and retries the GRU on CPU if cuDNN reports CUDNN_STATUS_NOT_SUPPORTED.
+
+Requires Ilaria RVC 2.4.0 or later. Install from **Other → Update Ilaria RVC** when the update is available.
