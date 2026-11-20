@@ -196,6 +196,70 @@ else:
 
 default_batch_size = 8
 gpus = "-".join([i[0] for i in gpu_infos])
+from ilaria_training_precision import (
+    PRECISIONS, automatic_precision, available_precisions, describe_cuda,
+    precision_preference, save_precision_preference, saved_precision,
+    validate_device_precision,
+)
+
+precision_preference_path = pathlib.Path(now_dir) / ".ilaria-settings" / "training-precision"
+manual_training_precision = precision_preference(precision_preference_path)
+notebook_precision = os.environ.get("ILARIA_TRAIN_PRECISION")
+notebook_training = notebook_precision == "Auto"
+if manual_training_precision is None and notebook_precision in PRECISIONS:
+    manual_training_precision = notebook_precision
+
+
+def precision_for_training(model, devices, automatic, selected, change_saved=False):
+    previous = saved_precision(now_dir, model)
+    if previous and (automatic or not change_saved):
+        selected = previous
+    elif automatic:
+        selected = automatic_precision(devices, notebook_training)
+    validate_device_precision(selected, devices)
+    return selected
+
+
+startup_training_devices = describe_cuda(torch.cuda, gpus)
+startup_training_precisions = available_precisions(startup_training_devices)
+startup_training_precision = (manual_training_precision if manual_training_precision in startup_training_precisions
+                              else automatic_precision(startup_training_devices, notebook_training))
+print("CUDA available: " + ("Yes" if startup_training_devices else "No"), flush=True)
+print("Native BF16 support (selected training GPUs): " + ("Yes" if "BF16" in startup_training_precisions else "No"), flush=True)
+print("Training precision: " + startup_training_precision +
+      (" (Manual)" if manual_training_precision == startup_training_precision else " (Automatic)"), flush=True)
+
+
+def update_precision_selector(gpu_ids, model, automatic, selection, change_saved=False):
+    try:
+        devices = describe_cuda(torch.cuda, gpu_ids)
+        choices = available_precisions(devices)
+        previous = saved_precision(now_dir, model)
+        keep_previous = bool(previous and (automatic or not change_saved))
+        if keep_previous:
+            preferred, mode = previous, "Saved training"
+        elif automatic:
+            preferred, mode = automatic_precision(devices, notebook_training), "Automatic"
+        else:
+            preferred, mode = precision_preference(precision_preference_path) or selection, "Manual"
+        status = f"{preferred} ({mode})"
+        value = preferred if preferred in choices else "FP32"
+        if preferred not in choices:
+            status = f"{preferred} is unavailable for these GPUs. Select a supported precision for this run."
+        elif "BF16" not in choices:
+            status += " | BF16 requires native support on every selected CUDA GPU."
+        return gr.update(choices=choices, value=value, interactive=not automatic and not keep_previous and len(choices) > 1), status
+    except (OSError, ValueError, KeyError) as error:
+        return gr.update(), str(error)
+
+
+def store_precision_selection(gpu_ids, model, automatic, selection, change_saved):
+    if automatic:
+        save_precision_preference(precision_preference_path, None)
+    elif selection in PRECISIONS and (change_saved or not saved_precision(now_dir, model)):
+        save_precision_preference(precision_preference_path, selection)
+    return update_precision_selector(gpu_ids, model, automatic, selection, change_saved)
+
 
 class ToolButton(gr.Button, gr.components.FormComponent):
 
@@ -310,7 +374,7 @@ program_restart_code = 42
 
 
 
-def scan_training_advice(sample_rate="32k", precision="FP32", selected="Auto (largest compatible GPU)"):
+def scan_training_advice(sample_rate="32k", precision="Auto", selected="Auto (largest compatible GPU)"):
     from ilaria_hardware_probe import collect_hardware
     from ilaria_training_advisor import hardware_report, recommendation_report, gpu_choices, AUTO_GPU
     yield "Checking local CPU, RAM, GPU, runtime and free memory...", "", "", gr.update(), None
@@ -780,8 +844,8 @@ def extract_f0_feature(gpus, n_p, f0method, if_f0, exp_dir, version19, gpus_rmvp
     if not audio_dir.is_dir() or not any(p.is_file() and p.suffix.lower() == ".wav" and p.stat().st_size > 0 for p in audio_dir.iterdir()):
         yield "Error: Run 1. Process Data first."
         return
-    if precision not in ("FP16", "FP32"):
-        yield "Choose FP16 or FP32 in Training Settings & Other."
+    if precision not in PRECISIONS:
+        yield "Choose BF16, FP16 or FP32 in Training Settings & Other."
         return
     if precision == "FP16" and not torch.cuda.is_available():
         yield "FP16 requires a CUDA GPU. Select FP32 in Training Settings & Other."
@@ -1229,13 +1293,14 @@ def persist_training_precision(config_path, template, precision, preview_config=
     """Set this experiment's precision without changing shared templates."""
     import copy
     import tempfile
-    if precision not in ("FP16", "FP32"):
-        raise ValueError("Choose FP16 or FP32.")
+    if precision not in PRECISIONS:
+        raise ValueError("Choose BF16, FP16 or FP32.")
     if os.path.exists(config_path):
         with open(config_path, "r", encoding="utf-8") as stream:
             data = json.load(stream)
     else:
         data = copy.deepcopy(template)
+    data["train"]["precision"] = precision
     data["train"]["fp16_run"] = precision == "FP16"
     if training_options is not None:
         data["train"].update(training_options)
@@ -1277,12 +1342,12 @@ def _click_train(
     if not str(exp_dir1 or "").strip():
         yield "Enter a Model Name in Training before starting this step."
         return
-    if precision not in ("FP16", "FP32"):
-        yield "Choose FP16 or FP32 in Training Settings & Other."
+    try:
+        validate_device_precision(precision, describe_cuda(torch.cuda, gpus16))
+    except ValueError as error:
+        yield "Training settings error: " + str(error)
         return
-    if precision == "FP16" and not torch.cuda.is_available():
-        yield "FP16 requires a CUDA GPU. Select FP32 in Training Settings & Other."
-        return
+    yield f"Training precision: {precision}"
     options = training_options or {"vocoder":"HiFi-GAN", "embedder_model":"contentvec", "silent_training_files":2, "training_target":"Epochs", "total_steps":10000, "index_algorithm":"Auto"}
     global f0_dir, f0nsf_dir
     exp_dir = "%s/logs/%s" % (now_dir, exp_dir1)
@@ -1542,7 +1607,7 @@ def click_train(exp_dir1, sr2, if_f0_3, spk_id5, save_epoch10, total_epoch11,
                 notification_desktop=True, notification_sound=True, dataset_path="datasets",
                 vocoder="HiFi-GAN", embedder_model="contentvec", silent_files=2,
                 training_target="Epochs", total_steps=10000, index_algorithm="Auto",
-                pretrain_selection="Auto (official pretrained for current settings)"):
+                pretrain_selection="Auto (official pretrained for current settings)", automatic_precision_enabled=False, change_saved_precision=False):
     if globals().get("training_queue") is not None and training_queue.blocks_manual():
         yield "Error: The training queue is running. Pause it before starting a manual step.", gr.update(), gr.update(), gr.update()
         return
@@ -1554,6 +1619,8 @@ def click_train(exp_dir1, sr2, if_f0_3, spk_id5, save_epoch10, total_epoch11,
     import uuid
     from ilaria_training_options import validate_options
     try:
+        precision = precision_for_training(exp_dir1, describe_cuda(torch.cuda, gpus16),
+                                           automatic_precision_enabled, precision, change_saved_precision)
         from ilaria_pretrain_selector import resolve_training_pretrain
         pretrained_G14, pretrained_D15 = resolve_training_pretrain(pretrain_selection,
             sr2, if_f0_3, version19, now_dir, pretrained_G14, pretrained_D15)
@@ -1700,7 +1767,7 @@ def run_queued_training(job):
     elif resume:
         yield model + " | Resuming saved training; prepared data is kept."
     last = ""
-    operation = click_train(*args)
+    operation = click_train(*args, change_saved_precision=True)
     try:
         for result in operation:
             last = str(result[0])
@@ -1725,7 +1792,9 @@ def refresh_training_queue(selected=None):
 
 def add_training_to_queue(*values):
     args = list(values[:30])
-    cpu, feature_gpus, pitch_gpus, pitch_method, automatic = values[30:]
+    cpu, feature_gpus, pitch_gpus, pitch_method, automatic = values[30:35]
+    automatic_precision_enabled = bool(values[35]) if len(values) > 35 else False
+    change_saved_precision = bool(values[36]) if len(values) > 36 else False
     with training_session.lock:
         training_session._prune()
         if training_session.job and training_session.job["name"].casefold() == str(args[0] or "").strip().casefold():
@@ -1733,6 +1802,8 @@ def add_training_to_queue(*values):
             return
     yield "Saving this job's dataset and settings. Please wait..."
     try:
+        args[14] = precision_for_training(str(args[0] or "").strip(), describe_cuda(torch.cuda, args[10]),
+                                          automatic_precision_enabled, args[14], change_saved_precision)
         from ilaria_pretrain_selector import resolve_training_pretrain, FROZEN, NONE, AUTO
         if args[23] in ("RefineGAN", "MRF HiFi-GAN") and args[29] == AUTO:
             raise ValueError("Select a compatible pretrained pair or None before adding the job.")
@@ -2474,7 +2545,7 @@ TUTORIAL_SECTIONS = (
     ('2. Your first training \u2014 follow the four buttons',
      '1. Prepare recordings of **one voice** in a dedicated dataset folder. Use clear recordings with little background noise, music, echo, clipping, or overlapping speakers. WAV is a straightforward input format; converting a poor recording to WAV does not repair it.\n2. In **Training**, click the empty **Model Name** box and type a unique name, such as `myvoice`. The faint `ilaria` example is a placeholder, not an entered name. Use a simple name without slashes. This name identifies the experiment folder and the exported model.\n3. Open **Training Settings & Other**. Set **Path to Dataset** to your recordings folder. The default `datasets` means the `datasets` folder inside the application folder. Put audio directly in that folder; the preprocessor does not recursively search subfolders.\n4. For a first attempt, keep **Sample Rate 32k**, **Pitch Guidance True**, **CPU Threads 8**, **Speaker ID 0**, **Pitch Extraction rmvpe**, **Total Epochs 300**, and **Batch Size 8**. These are starting values, not a promise that every dataset or GPU will need the same settings.\n5. Click **1. Process Data**. Wait for **Pre-Process done! | 100.0%** before continuing.\n6. Click **2. Feature Extraction**. Wait for **Feature Extraction done! | 100.0%**. This creates pitch data when enabled, then the audio features needed by training and the index.\n7. Click **3. Train Index**. Wait for **Train Index done! | 100.0%**. This creates the optional retrieval file; it does not train the `.pth` voice model.\n8. Click **4. Train Pth**. Wait for **DONE!** and the actual completion time in **Training Log**. Reaching the last epoch can still be followed by a final save.\n9. Open **Inference**, click **Refresh**, and select your newly exported model. Upload a short test recording and convert it.\n\nRun one operation at a time and wait for it to finish. Closing a browser tab does not reliably stop a running backend job. Keep the CMD window open while the application is working.\n\nThe index and `.pth` model are separate products of the same extracted features. Training the index first follows the order shown in this UI; it does not make the neural network learn faster or change its training loss.'),
     ('3. Model Name, dataset paths, sample rate, and speaker ID',
-     '**Model Name \u2014 required; starts empty.** The faint `ilaria` text is a **placeholder**, which means an example displayed inside an empty box. It is not an entered name, is not submitted as a name, and will not automatically name your model. Click the box and type your own name; you do not need to select or delete the example first. If the box is empty again, the example can reappear.\n\n**Exactly what to type:** a simple experiment name such as `myvoice` or `myvoice_v2_test`. Type the name only: do not paste a folder path, and do not add `.pth`. Avoid slashes, backslashes, and Windows filename characters such as `: * ? " < > |`. A short name using letters, numbers, underscores, or hyphens is easy to recognize.\n\n**Example:** typing `myvoice` makes the experiment folder `logs/myvoice` and, after successful training, the inference model `models/myvoice.pth`. Typing a name does not create a trained voice by itself; you must still complete the four training steps.\n\n**Keep the same name through one experiment.** Process Data, Feature Extraction, Train Index, and Train Pth all use this field to locate that experiment. If you process data under `myvoice` and then change the field to `another_voice`, the next step looks in the other experiment folder. It does not move or rename the files you prepared earlier.\n\n**If you leave it blank:** all four training actions stop and display `Enter a Model Name in Training before starting this step.` Type the intended name and click the appropriate step again. Spaces alone do not count as a name.\n\n**New experiment versus continuing an old one:** use a unique new name for a fresh dataset or new configuration. To continue an existing experiment, enter its exact original name and keep compatible settings. Reusing a name can reuse old features, configuration, and saved G/D checkpoints; it is not a guaranteed fresh start. Changing Model Name does not change which voice is selected in Inference.\n\n**Path to Dataset \u2014 default `datasets`.** This is a folder containing the source audio, not the path to a single recording. Example: `C:/VoiceData/myvoice`. Relative paths are resolved from the application folder. Paste an actual path rather than a placeholder such as `%userprofile%`; not every field expands Windows environment variables. Keep unrelated files and subfolders out of the input folder.\n\n**Sample Rate \u2014 default `32k`; choices `32k`, `40k`, `48k`.** These mean 32,000, 40,000, or 48,000 audio samples per second for the trained model. They are not bitrates or training speed controls. A higher value does not recover detail missing from your recordings. Keep the sample rate consistent with the selected pretrained files. If you change it after processing, start a new experiment and repeat the preparation steps rather than mixing old and new data.\n\n**Pitch Guidance \u2014 default `True`.** This trains a model that uses an extracted pitch contour, also called F0. Leave it enabled for your first voice or singing model. `False` trains a model without that pitch input, skips F0 extraction, and changes which pretrained files are needed. Treat this as a choice made before preparing the experiment, not a switch to flip halfway through training.\n\n**Speaker ID \u2014 default `0`, range `0\u20134` in training.** This tags the training examples with a speaker number. For the normal one-voice workflow, leave it at `0`. Changing it does not select a GPU or automatically separate multiple speakers. Proper multi-speaker preparation needs additional planning outside this basic workflow.\n\n**Version.** This customized training interface uses RVC **V2**. You do not need to find a version switch.\n\n**Training Precision \u2014 default FP32; choices FP16 and FP32.** Open Training Settings & Other to choose. FP32 uses full-precision training. FP16 uses CUDA mixed precision: eligible calculations run in half precision, with FP32 sections and gradient scaling retained for stability. It is not a promise that every tensor becomes half precision. FP16 may use less VRAM and be faster on a compatible GPU such as Ilaria\'s RTX 4070; compare measured epoch times and output quality. For GTX 16xx cards, FP32 is the recommended starting point because FP16 can be unstable.\n\nThe choice is written into this experiment\'s config every time Train Pth is started, including when continuing saved training. Changing an old experiment to FP32 therefore does not silently keep its previous FP16 config. The running job keeps the precision with which it started; changing the radio while it runs does not change that job. Wait for the current job to finish before starting another.\n\nThe same choice controls newly computed HuBERT features on CUDA and CUDA RMVPE extraction. CPU/MPS/DirectML feature extraction uses FP32, and CPU RMVPE remains FP32. Previously extracted files are reused; changing this control does not retroactively regenerate them. For a full comparison, use a new experiment name and repeat preparation. Switching only the PTH training precision does not require regenerating valid features.\n\nFP16 training requires CUDA in this UI. On a CPU setup choose FP32. FP32 normally uses more VRAM: lower Batch Size if you get CUDA out of memory. Training Precision does not change the Inference settings or the Other > Merge models Output precision control. The normal final training export still uses the existing inference-export format (half-precision weights); FP32 training does not mean the exported .pth is a full-precision or resumable training checkpoint.'),
+     '**Model Name \u2014 required; starts empty.** The faint `ilaria` text is a **placeholder**, which means an example displayed inside an empty box. It is not an entered name, is not submitted as a name, and will not automatically name your model. Click the box and type your own name; you do not need to select or delete the example first. If the box is empty again, the example can reappear.\n\n**Exactly what to type:** a simple experiment name such as `myvoice` or `myvoice_v2_test`. Type the name only: do not paste a folder path, and do not add `.pth`. Avoid slashes, backslashes, and Windows filename characters such as `: * ? " < > |`. A short name using letters, numbers, underscores, or hyphens is easy to recognize.\n\n**Example:** typing `myvoice` makes the experiment folder `logs/myvoice` and, after successful training, the inference model `models/myvoice.pth`. Typing a name does not create a trained voice by itself; you must still complete the four training steps.\n\n**Keep the same name through one experiment.** Process Data, Feature Extraction, Train Index, and Train Pth all use this field to locate that experiment. If you process data under `myvoice` and then change the field to `another_voice`, the next step looks in the other experiment folder. It does not move or rename the files you prepared earlier.\n\n**If you leave it blank:** all four training actions stop and display `Enter a Model Name in Training before starting this step.` Type the intended name and click the appropriate step again. Spaces alone do not count as a name.\n\n**New experiment versus continuing an old one:** use a unique new name for a fresh dataset or new configuration. To continue an existing experiment, enter its exact original name and keep compatible settings. Reusing a name can reuse old features, configuration, and saved G/D checkpoints; it is not a guaranteed fresh start. Changing Model Name does not change which voice is selected in Inference.\n\n**Path to Dataset \u2014 default `datasets`.** This is a folder containing the source audio, not the path to a single recording. Example: `C:/VoiceData/myvoice`. Relative paths are resolved from the application folder. Paste an actual path rather than a placeholder such as `%userprofile%`; not every field expands Windows environment variables. Keep unrelated files and subfolders out of the input folder.\n\n**Sample Rate \u2014 default `32k`; choices `32k`, `40k`, `48k`.** These mean 32,000, 40,000, or 48,000 audio samples per second for the trained model. They are not bitrates or training speed controls. A higher value does not recover detail missing from your recordings. Keep the sample rate consistent with the selected pretrained files. If you change it after processing, start a new experiment and repeat the preparation steps rather than mixing old and new data.\n\n**Pitch Guidance \u2014 default `True`.** This trains a model that uses an extracted pitch contour, also called F0. Leave it enabled for your first voice or singing model. `False` trains a model without that pitch input, skips F0 extraction, and changes which pretrained files are needed. Treat this as a choice made before preparing the experiment, not a switch to flip halfway through training.\n\n**Speaker ID \u2014 default `0`, range `0\u20134` in training.** This tags the training examples with a speaker number. For the normal one-voice workflow, leave it at `0`. Changing it does not select a GPU or automatically separate multiple speakers. Proper multi-speaker preparation needs additional planning outside this basic workflow.\n\n**Version.** This customized training interface uses RVC **V2**. You do not need to find a version switch.\n\n**Training Precision.** Auto uses native BF16 on RTX 30, 40 and 50 series when every selected GPU supports it. Kaggle T4 uses FP16. Other setups default to FP32. Turn off Automatic training precision to choose manually. Your choice is saved for future launches.\n\nSaved training keeps its original precision. To switch a saved run, turn off Auto and enable Allow changing precision for saved training. Jobs in the Training Queue keep the precision selected when they were added.\n\nBF16 and FP16 use mixed precision. FP16 uses gradient scaling. BF16 keeps feature extraction in FP32. FP16 can also use half precision for new CUDA features and CUDA RMVPE. Existing feature files are reused. Exported voice models keep the regular RVC format.\n\nFP16 training requires CUDA in this UI. On a CPU setup choose FP32. FP32 normally uses more VRAM: lower Batch Size if you get CUDA out of memory. Training Precision does not change the Inference settings or the Other > Merge models Output precision control. The normal final training export still uses the existing inference-export format (half-precision weights); FP32 training does not mean the exported .pth is a full-precision or resumable training checkpoint.'),
     ('4. CPU Threads and every training pitch extractor',
      "**CPU Threads \u2014 default `8`, range `1\u201312`.** This controls worker processes for data preparation and CPU pitch extraction. It is not the neural network's GPU batch size and does not set every CPU thread used by every library. More workers can increase CPU/RAM use and are not always faster. Reduce the value if preparation overloads your computer.\n\n**Pitch Extraction \u2014 default `rmvpe`.** The extractor measures how the recorded pitch changes over time. It does not choose the target voice. In this build:\n\n| Option | What it does here |\n| --- | --- |\n| `pm` | Uses the Parselmouth pitch estimator on CPU. An alternative to compare on the same recording. |\n| `harvest` | Uses WORLD Harvest on CPU. Another pitch estimation method; the results and processing time can differ from RMVPE. |\n| `dio` | Uses WORLD DIO on CPU. Another available CPU method. |\n| `rmvpe` | Uses the RMVPE neural pitch extractor **on CPU in the training extraction script**. This is the default. |\n| `rmvpe_gpu` | Runs RMVPE through the separate GPU extraction route. It exposes the RMVPE GPU process field below. |\n\nYou can compare methods by listening to resulting conversions, but keep a single experiment's prepared files consistent. **CREPE is an inference option in this build, not a training option.** **FCPE** (Fast Context-based Pitch Estimation) is available in Training and Inference. It uses CPU for dataset extraction and CUDA for inference when available.\n\n**RMVPE GPU process field.** It appears when Pitch Guidance is enabled and `rmvpe_gpu` is selected on a supported setup. `0` runs one extraction process on GPU 0. `0-0` runs two processes on GPU 0. `0-0-2` runs two on GPU 0 and one on GPU 2. Repeating a number creates more processes; it does not create more physical GPUs and can use more VRAM.\n\n**CPU RMVPE versus GPU RMVPE:** changing this affects the preparation stage. It does not directly reduce the number of neural-network training epochs."),
     ('5. GPU selection, Batch Size, and Cache data to GPU',
@@ -2500,7 +2571,7 @@ TUTORIAL_SECTIONS = (
     ('15. Troubleshooting \u2014 check this before starting over',
      '**The name box shows an example but the action asks for a name.** Example text is only a placeholder. Click the box and type an actual name. Training needs Model Name; merging needs New model name. They are independent.\n\n**\u201c3_feature768\u201d is missing, or \u201cError: Run 2. Feature Extraction first.\u201d** Run Process Data and then Feature Extraction for the same Model Name. Wait for each success message. If extraction failed, read its log; creating an empty folder does not create the needed features.\n\n**The model does not appear.** Check that an exported inference `.pth` is in `models`, click Refresh, and select the intended model again. An interrupted training run may not have reached an inference export yet.\n\n**The index is missing or the old one is used.** Finish Train Index, check naming, select the model again, and inspect both index path fields. The manual field has priority. At Index Ratio `0`, no index retrieval is applied.\n\n**Out of GPU memory.** Lower Batch Size, disable Cache data to GPU, unload the inference voice, and close other GPU-heavy tasks before retrying. For RMVPE GPU extraction, reduce repeated GPU IDs/processes if needed.\n\n**Progress stays at the same number.** A long source file, first-epoch setup, clustering, or FAISS training can take time without a new completed unit. Check the CMD/log files for errors. Clicking the action repeatedly can start competing work; do not use repeated clicks as a progress refresh.\n\n**The conversion is distorted or sounds wrong.** Confirm the correct Voice Model, test Pitch `0`, compare a clean vocal-only input, and test with Index Ratio `0` to remove retrieval as a variable. Then adjust one control at a time.\n\n**The finished model did not improve after many epochs.** Extra epochs cannot repair a mixed-speaker, noisy, or clipped dataset. Review the recordings and preparation before increasing the training target.\n\n**A change seems to have no effect.** Check that you changed the correct Single/Batch settings and actually ran Conversion again. For application-code updates, restart the Web UI after any active job has finished.'),
     ('16. Quick reference and a default-settings checklist',
-     '| Term | Plain-English meaning |\n| --- | --- |\n| Dataset | The recordings used to teach a voice model. |\n| Inference | Using a trained model to convert audio. |\n| F0 / pitch contour | The measured pitch over time. |\n| Feature | A numerical description of audio used by the model. |\n| Epoch | One pass through the prepared training dataset. |\n| Batch / step | A group of training examples and one batch update. Total Steps accumulates these updates. |\n| Checkpoint | Saved training state used to continue a run. |\n| Index | The optional database of dataset features used for retrieval. |\n| VRAM | Memory on the GPU; different from normal system RAM. |\n| ETA | Estimated remaining time; a prediction that can change. |\n\n**Training defaults:** V2; Training Precision **FP32**; Sample Rate **32k**; Pitch Guidance **True**; CPU Threads **8**; Speaker ID **0**; Pitch Extraction **rmvpe**; Save frequency **100**; Total Epochs **300**; Batch Size **8**; latest checkpoint **Yes**; Cache data to GPU **No**; Create model at save frequency **No**.\n\n**Inference defaults in both tabs:** Pitch **0**; Pitch Extraction **rmvpe**; Index Ratio **0**; Resampling **0**; volume-envelope mix **0.25**; protection **0.33**; Harvest median filter **3**; Speaker ID **0** where applicable. Batch output folder **InferOutput**, export format **flac**.\n\nUse these values to get a baseline, then make one deliberate change at a time. The best check is a controlled listening comparison using the same short input recording.'),
+     '| Term | Plain-English meaning |\n| --- | --- |\n| Dataset | The recordings used to teach a voice model. |\n| Inference | Using a trained model to convert audio. |\n| F0 / pitch contour | The measured pitch over time. |\n| Feature | A numerical description of audio used by the model. |\n| Epoch | One pass through the prepared training dataset. |\n| Batch / step | A group of training examples and one batch update. Total Steps accumulates these updates. |\n| Checkpoint | Saved training state used to continue a run. |\n| Index | The optional database of dataset features used for retrieval. |\n| VRAM | Memory on the GPU; different from normal system RAM. |\n| ETA | Estimated remaining time; a prediction that can change. |\n\n**Training defaults:** V2; Training Precision **Auto**; Sample Rate **32k**; Pitch Guidance **True**; CPU Threads **8**; Speaker ID **0**; Pitch Extraction **rmvpe**; Save frequency **100**; Total Epochs **300**; Batch Size **8**; latest checkpoint **Yes**; Cache data to GPU **No**; Create model at save frequency **No**.\n\n**Inference defaults in both tabs:** Pitch **0**; Pitch Extraction **rmvpe**; Index Ratio **0**; Resampling **0**; volume-envelope mix **0.25**; protection **0.33**; Harvest median filter **3**; Speaker ID **0** where applicable. Batch output folder **InferOutput**, export format **flac**.\n\nUse these values to get a baseline, then make one deliberate change at a time. The best check is a controlled listening comparison using the same short input recording.'),
     ('17. RVC concepts and the wider ecosystem',
      "**RVC \u2014 Retrieval-based Voice Conversion.** A system that converts the voice character of existing audio. Its main pieces are a content encoder, a pitch estimator, an acoustic generator, and optional feature retrieval. It uses recorded audio as input; it is not a text-to-speech interface.\n\n**F0 / fundamental frequency.** The base repetition frequency of vocal-fold vibration in voiced speech or singing, closely related to perceived pitch. Pitch estimation or tracking measures it over time. Consonants and breaths can be unvoiced and do not always have a meaningful F0.\n\n**RMVPE \u2014 Robust Model for Vocal Pitch Estimation.** A neural pitch estimator. Its F0 output conditions pitch-guided RVC training and conversion, telling the generator about high and low notes. It does not teach the words or select the speaker on its own.\n\n**Embedder / content encoder.** A pretrained model that turns audio into numerical representations. A content encoder aims to preserve linguistic information while reducing speaker-specific information. It supplies learned speech features; it does not literally teach every language or guarantee correct pronunciation.\n\n**ContentVec / HuBERT.** Standard RVC uses a HuBERT-style content encoder associated with ContentVec, commonly distributed as `hubert_base.pt`. This installation loads `assets/hubert/hubert_base.pt`. The filename alone does not identify every detail of how those weights were trained.\n\n**Codebook.** A set of discrete representative codes used in some speech-representation training methods. It is different from the continuous feature vectors used by RVC's retrieval index. Codebook size is not a quality score: architecture, training data, and compatibility also matter. The glossary does not assume a particular codebook size for an arbitrary downloaded checkpoint.\n\n**SpinV2.** An alternative speech representation/embedding approach found in parts of the RVC ecosystem, rather than a selectable embedder in this UI. Using another embedder requires compatible extraction and model/pretraining support; renaming its file to `hubert_base.pt` is not a supported upgrade. A larger codebook alone does not establish that it will sound better here.\n\n**AI architecture.** The design of a model: its components, connections, and how information flows through them. A different architecture can require different weights and training code.\n\n**Mainline and fork.** Mainline refers here to the [original RVC project](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI). A fork is a separately modifiable copy of a repository, often used for experiments, fixes, and new features. Features in a fork are not automatically present in this installation.\n\n**Vocoder.** A neural component that generates an audio waveform from conditioning features. Standard RVC uses an NSF-HiFi-GAN-style waveform generator conditioned on learned features and F0, rather than requiring a plain mel spectrogram as its only input. RefineGAN, HiFi-GAN, and RingFormer are names you may encounter for other waveform-generation designs in the wider ecosystem; they are not interchangeable settings exposed in this app.\n\n**Pretrain / pretrained model.** Weights already learned from a larger training task, reused as a starting point. **Fine-tuning** continues training those weights on a more specific dataset, such as Ilaria's voice recordings. Your dataset, pitch setup, sample rate, architecture, and pretrained files must be compatible.\n\n**VCTK.** A multi-speaker English speech dataset often discussed in speech-model training. It is not your personal training dataset. Do not infer the exact training data of every RVC pretrain from its filename, or assume all pretrained models use the same corpus. Speech recordings and expressive singing can have different coverage and demands.\n\n**Epoch and batch size.** An epoch is a pass through the prepared training data; batch size is how many prepared examples are handled together. An epoch is not a second, and batch size is not dataset duration. See section 6 for cumulative steps and resume behavior.\n\n**Overtraining / overfitting.** Training can become too specialized to its examples and generalize poorly to new performances. More training can stop improving or worsen results; robotic artifacts alone do not prove overfitting, because bad input, pitch errors, and other settings can also cause them. Compare held-out test audio and intermediate exports when available.\n\n**Generator and discriminator.** The generator produces audio; the discriminator learns to distinguish generated audio from real training audio. Their competing objectives provide feedback during training. The discriminator helps train the generator but is not the voice model selected for normal inference.\n\n**VITS.** Originally an end-to-end text-to-speech architecture. RVC adapts ideas from VITS for audio-conditioned voice conversion; this does not make this UI a text-to-speech tool. See the [original VITS repository](https://github.com/jaywalnut310/vits).\n\n**RVC-Boss.** A prominent developer/maintainer associated with the RVC project. RVC includes contributions from a team and upstream research projects; credit and checkpoint provenance should be checked in the relevant repositories.\n\n**Further reading:** [Understanding RVC \u2014 Retrieval-based Voice Conversion](https://gudgud96.github.io/2024/09/26/annotated-rvc/) explains content extraction, RMVPE, the VITS-based acoustic model, and retrieval in more depth. It is an external technical explanation; this glossary's control descriptions refer to the local ILARIA RVC build."),
     ('18. Downloading, importing, and merging models',
@@ -2822,7 +2893,7 @@ ILARIARVC_CSS += '\n/* Spacing for collapsible settings and their controls acros
 
 ILARIARVC_CSS += '\n/* PC advice follows the same clear panels and spacing as the other tools. */\n.gradio-container #ilaria-main-tabs #other-tab #training-advisor {\n    border: 2px solid #D8B4FE !important;\n    background: #62416B !important;\n    border-radius: 12px !important;\n    margin: 8px 0 !important;\n    padding: 12px !important;\n}\n.gradio-container #ilaria-main-tabs #training-advisor > * {\n    border-color: #D8B4FE !important;\n    color: #FFFFFF !important;\n}\n#training-advisor-help { padding: 12px 18px !important; text-align: center; }\n#training-advisor-hardware, #training-advisor-recommendations {\n    padding: 12px 18px !important; overflow-x: auto; color: #F8EFFA !important;\n}\n#training-advisor table { width: 100%; border-collapse: collapse; text-align: left; }\n#training-advisor th, #training-advisor td {\n    color: #FFFFFF !important; border: 1px solid #C59ACD !important; padding: 8px 12px;\n}\n#training-advisor a { color: #FFD5E4 !important; text-decoration: underline; }\n'
 
-TUTORIAL_SECTIONS += (('22. PC training advisor: find a sensible starting point', "Open Other > PC training advisor, below Model information and above Update Ilaria RVC. This section starts closed. Choose the sample rate and precision you want to evaluate (32k and FP32 by default), then click Scan PC and suggest settings. The scan reads this PC's CPU, RAM, free space, PyTorch/CUDA runtime and visible GPUs. It does not upload hardware information, install drivers, run training or change any Training settings.\n\nThe hardware report contains measured facts and a PC-local scan timestamp. Total VRAM is the card's capacity; free VRAM is what is available at that moment, so Inference models and other programs can change it. If free memory cannot be read, the report says Unknown and the batch estimate uses a conservative assumption. With multiple GPUs, Auto chooses the largest compatible visible card. Select a specific GPU to evaluate it individually. Memory from separate cards is not added together. The hardware table uses visible scan IDs. The Training GPU ID advice accounts for numeric CUDA visibility mappings used by the trainer; custom UUID mappings must be confirmed manually. Windows Device Manager can use different numbering.\n\nThe settings table gives conservative starting estimates, not official maximum batches or a guarantee that training will fit. Changing the advisor's sample rate, precision or GPU recalculates the table from the existing snapshot; click Scan again for fresh free-memory figures. A higher sample rate or less free VRAM lowers the suggested batch. FP32 remains the default. GTX 16-series and Pascal SM 6.1 cards are advised to use FP32 even if you ask to evaluate FP16. Mixed precision can help some modern GPUs, but must be compared on your actual dataset. A GPU can be detected even when this older runtime cannot train on its architecture; read the runtime check before treating a suggestion as usable.\n\nCopy suitable values manually into Training > Training Settings & Other for a new experiment. Always use compatible pretrained G/D weights and prepared data for the chosen sample rate and pitch mode. If CUDA runs out of memory, halve Batch Size down to 1, keep Cache data to GPU set to No, free VRAM and check again. The suggested CPU Threads control concerns preparation; it does not change the trainer's separate DataLoader workers. Low available RAM lowers the suggested preparation thread count.\n\nTotal Epochs 300 and Save frequency 100 are Ilaria's personal baseline, not values computed from your GPU. Her usual dataset is about 35 minutes of clean expressive speech. Your recordings, voice, dataset variety and preferred result matter. Compare held-out conversions or Training previews; more epochs or a larger batch do not automatically improve quality. Lower Save frequency if you need more recovery points, accounting for save time and disk space.\n\nWhen resuming a saved experiment, preserve its original compatible data, batch size, GPU count and architecture. A fresh hardware suggestion is not permission to change an existing checkpoint's setup. This advisor cannot predict final quality, the best epoch or a precise training time from hardware alone. The report links the official RVC and PyTorch references behind the advice. Numeric batch/thread tiers are this app's own rules, clearly marked as estimates."),)
+TUTORIAL_SECTIONS += (('22. PC training advisor: find a sensible starting point', "Open Other > PC training advisor, below Model information and above Update Ilaria RVC. This section starts closed. Choose the sample rate and precision you want to evaluate (32k and Auto by default), then click Scan PC and suggest settings. The scan reads this PC's CPU, RAM, free space, PyTorch/CUDA runtime and visible GPUs. It does not upload hardware information, install drivers, run training or change any Training settings.\n\nThe hardware report contains measured facts and a PC-local scan timestamp. Total VRAM is the card's capacity; free VRAM is what is available at that moment, so Inference models and other programs can change it. If free memory cannot be read, the report says Unknown and the batch estimate uses a conservative assumption. With multiple GPUs, Auto chooses the largest compatible visible card. Select a specific GPU to evaluate it individually. Memory from separate cards is not added together. The hardware table uses visible scan IDs. The Training GPU ID advice accounts for numeric CUDA visibility mappings used by the trainer; custom UUID mappings must be confirmed manually. Windows Device Manager can use different numbering.\n\nThe settings table gives conservative starting estimates, not official maximum batches or a guarantee that training will fit. Changing the advisor's sample rate, precision or GPU recalculates the table from the existing snapshot; click Scan again for fresh free-memory figures. A higher sample rate or less free VRAM lowers the suggested batch. Auto recommends native BF16 on RTX 30, 40 and 50 series, FP16 on Kaggle T4, and FP32 elsewhere. GTX 16-series and Pascal SM 6.1 cards are advised to use FP32 even if you ask to evaluate FP16. Mixed precision can help some modern GPUs, but must be compared on your actual dataset. A GPU can be detected even when this older runtime cannot train on its architecture; read the runtime check before treating a suggestion as usable.\n\nCopy suitable values manually into Training > Training Settings & Other for a new experiment. Always use compatible pretrained G/D weights and prepared data for the chosen sample rate and pitch mode. If CUDA runs out of memory, halve Batch Size down to 1, keep Cache data to GPU set to No, free VRAM and check again. The suggested CPU Threads control concerns preparation; it does not change the trainer's separate DataLoader workers. Low available RAM lowers the suggested preparation thread count.\n\nTotal Epochs 300 and Save frequency 100 are Ilaria's personal baseline, not values computed from your GPU. Her usual dataset is about 35 minutes of clean expressive speech. Your recordings, voice, dataset variety and preferred result matter. Compare held-out conversions or Training previews; more epochs or a larger batch do not automatically improve quality. Lower Save frequency if you need more recovery points, accounting for save time and disk space.\n\nWhen resuming a saved experiment, preserve its original compatible data, batch size, GPU count and architecture. A fresh hardware suggestion is not permission to change an existing checkpoint's setup. This advisor cannot predict final quality, the best epoch or a precise training time from hardware alone. The report links the official RVC and PyTorch references behind the advice. Numeric batch/thread tiers are this app's own rules, clearly marked as estimates."),)
 
 ILARIARVC_CSS += '\n.gradio-container #ilaria-main-tabs #training-settings #training-notifications {\n    border: 2px solid #D8B4FE !important;\n    background: #62416B !important;\n    border-radius: 12px !important;\n    margin: 8px 0 !important;\n    padding: 12px !important;\n}\n.gradio-container #ilaria-main-tabs #training-notifications > * {\n    color: #FFFFFF !important;\n    border-color: #D8B4FE !important;\n}\n#training-notifications .gr-prose { padding: 10px 14px !important; }\n'
 TUTORIAL_SECTIONS += (('23. Training notifications: hear when a run finishes', "Open Training > Training Settings & Other > Training notifications. Desktop alerts and Sound alerts are both enabled by default. You can turn either one off independently before starting Train Pth. The options are captured for that training job: changing the checkboxes while a job is running affects the next job, not the current one.\n\nClick Test alerts to request a test using the currently selected checkboxes. A desktop alert is a local Windows notification with Ilaria's artwork; a sound alert uses the PC's Windows sound settings. This does not require browser notification permission, an account or an internet service. Test alerts does not start training or change your model. If both options are off, the test explains that nothing was requested.\n\nTraining completed is sent only after the trainer exits successfully and its log confirms the final epoch and successful final model export. Training failed is sent if the training process exits with an error, including an out-of-memory failure before the first completed epoch, or if a final export cannot be confirmed. The notification identifies the model; read Training Log and logs/<Model Name>/training_console.log for the actual error details. A validation message that prevents a training process from starting is shown in the UI instead of producing repeated desktop alerts.\n\nStop and save is an intentional pause. It does not trigger a completed or failed alert. The notification also does not run for Train Index, Process Data, Feature Extraction, previews, import or merging; it concerns Train Pth. There is one final alert per training job, not one alert per epoch or per GPU worker.\n\nYou can minimize or close the browser tab and still receive alerts because monitoring happens in the local backend, not JavaScript in the page. Keep Ilaria RVC and its CMD/backend running. Terminating the program, logging out, sleeping the PC or shutting it down can prevent delivery; notifications are not a way to keep training running after the program is closed.\n\nWindows notification settings, Do not disturb/Focus assist, quiet time, disabled system sounds and the current output device can hide or silence an alert. A test request being accepted does not prove that Windows displayed it. Check the selected options and Windows settings if you do not see or hear the test. The helper does not change system volume, notification permissions or the power plan. It registers only the Ilaria RVC notification name and icon for the current Windows user; administrator permissions are not required. Delivery runs in a short-lived background process, so it does not slow down epoch computation. No audio recordings, models or logs are sent to an external service."),)
@@ -3168,7 +3239,15 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                 silent_training_files = gr.Slider(minimum=0, maximum=10, value=2, step=1, label="Silent training files", interactive=True)
                 index_algorithm_control = gr.Radio(label="Index Algorithm", choices=["Auto", "Faiss", "KMeans"], value="Auto", interactive=True)
                 gr.Markdown("MRF HiFi-GAN requires RVC v2 and Pitch Guidance at 32, 40, or 48 kHz. RefineGAN requires RVC v2, 32 kHz and Pitch Guidance. Use a compatible pretrained pair or choose None to train from scratch. Download optional embedders from Other before feature extraction. Use a new Model Name when changing embedders. Steps is an alternative to epochs; Save frequency still counts epochs. Cache data to GPU must be No for Steps.", elem_id="training-options-help")
-                training_precision = gr.Radio(label="Training Precision", choices=["FP16", "FP32"], value="FP32", interactive=True)
+                training_precision = gr.Radio(label="Training Precision", choices=startup_training_precisions,
+                                              value=startup_training_precision, interactive=manual_training_precision is not None and len(startup_training_precisions) > 1)
+                training_precision_automatic = gr.Checkbox(label="Automatic training precision",
+                                                          value=manual_training_precision is None)
+                change_saved_training_precision = gr.Checkbox(label="Allow changing precision for saved training", value=False)
+                training_precision_status = gr.Markdown(
+                    startup_training_precision + (" (Automatic)" if manual_training_precision is None else " (Manual)")
+                    + (" | BF16 requires native support on every selected CUDA GPU." if "BF16" not in startup_training_precisions else "")
+                )
                 with gr.Row():
                     with gr.Column(scale=1):
                         trainset_dir4 = gr.Textbox(
@@ -3368,7 +3447,7 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                         trainset_dir4,
                     training_vocoder, training_embedder, silent_training_files,
                     training_target_mode, training_total_steps, index_algorithm_control, pretrain_selector,
-                        np7, gpus6, gpus_rmvpe, f0method8, queue_auto_prepare,
+                        np7, gpus6, gpus_rmvpe, f0method8, queue_auto_prepare, training_precision_automatic, change_saved_training_precision,
                     ], [queue_action_log], show_progress=False, api_name="add_training_to_queue")
             with gr.Column(elem_id="training-workflow"):
                 with gr.Row(elem_id="preprocess-step"):
@@ -3406,6 +3485,20 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                 [preview_log, preview_audio, preview_history], queue=False, show_progress=False)
             preview_history.change(select_training_preview, [exp_dir1, preview_history],
                 [preview_log, preview_audio], queue=False, show_progress=False)
+            precision_inputs = [gpus16, exp_dir1, training_precision_automatic, training_precision, change_saved_training_precision]
+            precision_outputs = [training_precision, training_precision_status]
+            for control in (gpus16, exp_dir1, change_saved_training_precision):
+                control.change(update_precision_selector, precision_inputs, precision_outputs, queue=False, show_progress=False)
+            training_precision_automatic.change(store_precision_selection, precision_inputs, precision_outputs, queue=False, show_progress=False)
+
+            def store_manual_precision(automatic, choice):
+                if not automatic and choice in PRECISIONS:
+                    save_precision_preference(precision_preference_path, choice)
+                    return choice + " (Manual)"
+                return gr.update()
+
+            training_precision.change(store_manual_precision, [training_precision_automatic, training_precision],
+                                      [training_precision_status], queue=False, show_progress=False)
             training_state_inputs = [version19, training_vocoder, sr2, if_f0_3,
                 training_embedder, training_target_mode, if_cache_gpu17, training_precision,
                 pretrain_selector, pretrained_G14, pretrained_D15, f0method8, preview_enabled]
@@ -3415,7 +3508,7 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                 total_epoch11, training_total_steps, preview_source, preview_every,
                 preview_pitch, preview_method, gpus6, gpus16]
             for control in (version19, training_vocoder, sr2, if_f0_3, training_embedder,
-                            training_target_mode, if_cache_gpu17, training_precision,
+                            training_target_mode, if_cache_gpu17,
                             pretrain_selector, f0method8, preview_enabled):
                 control.change(update_training_controls, training_state_inputs,
                     training_state_outputs, show_progress=False)
@@ -3465,6 +3558,7 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                     trainset_dir4,
                     training_vocoder, training_embedder, silent_training_files,
                     training_target_mode, training_total_steps, index_algorithm_control, pretrain_selector,
+                    training_precision_automatic, change_saved_training_precision,
                 ],
                 [info3, preview_log, preview_audio, preview_history],
                 api_name="train_start",
@@ -3868,7 +3962,7 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                 gr.Markdown("Check this PC and get starting settings for a new training experiment. The scan reads hardware locally; it does not run a training benchmark or change your settings.", elem_id="training-advisor-help")
                 with gr.Row():
                     advisor_sample_rate = gr.Radio(choices=["32k", "40k", "48k"], value="32k", label="Sample rate to plan for")
-                    advisor_precision = gr.Radio(choices=["FP32", "FP16"], value="FP32", label="Precision to evaluate")
+                    advisor_precision = gr.Radio(choices=["Auto", "BF16", "FP32", "FP16"], value="Auto", label="Precision to evaluate")
                 advisor_gpu = gr.Dropdown(choices=["Auto (largest compatible GPU)"], value="Auto (largest compatible GPU)", label="GPU to evaluate", interactive=True)
                 advisor_scan = gr.Button("Scan PC and suggest settings", variant="primary")
                 advisor_status = gr.Textbox(label="PC Advisor Log", value="Click Scan PC and suggest settings to inspect this computer.", lines=2, max_lines=3, interactive=False)

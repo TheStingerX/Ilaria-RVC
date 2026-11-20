@@ -79,8 +79,8 @@ def hardware_report(hardware):
     return "\n".join(lines)
 
 
-def suggest_settings(hardware, sample_rate="32k", precision="FP32", selection=AUTO_GPU):
-    if sample_rate not in ("32k", "40k", "48k") or precision not in ("FP32", "FP16"):
+def suggest_settings(hardware, sample_rate="32k", precision="Auto", selection=AUTO_GPU):
+    if sample_rate not in ("32k", "40k", "48k") or precision not in ("Auto", "BF16", "FP32", "FP16"):
         raise ValueError("Choose 32k, 40k or 48k and FP32 or FP16.")
     gpu = _select_gpu(hardware, selection)
     logical = int(_number(hardware.get("cpu", {}).get("logical")) or 1)
@@ -105,6 +105,13 @@ def suggest_settings(hardware, sample_rate="32k", precision="FP32", selection=AU
     cc = gpu.get("compute_capability")
     cc_text = ".".join(map(str, cc)) if isinstance(cc, (list, tuple)) else str(cc or "")
     legacy = bool(re.search(r"\b(?:GTX\s*)?16\d{2}\b", gpu.get("name", ""), re.I)) or cc_text == "6.1"
+    from ilaria_training_precision import automatic_precision
+
+    if precision == "Auto":
+        result["precision"] = automatic_precision([(gpu["name"], gpu.get("bf16", False))])
+    elif precision == "BF16" and not gpu.get("bf16", False):
+        result["precision"] = "FP32"
+        notes.append("Native BF16 is unavailable on this GPU. FP32 is recommended.")
     if legacy and precision == "FP16":
         result["precision"] = "FP32"
         notes.append("FP16 was requested, but FP32 is recommended for this GTX 16-series/Pascal SM 6.1 GPU, following mainline RVC's precision policy. Mixed precision can be unstable here.")
@@ -125,7 +132,7 @@ def suggest_settings(hardware, sample_rate="32k", precision="FP32", selection=AU
     # These are local starting heuristics, NOT official limits or a benchmark.
     tiers = [(21.0, 16, 16), (14.0, 12, 16), (9.5, 8, 12),
              (7.0, 4, 6), (4.5, 2, 4), (2.0, 1, 1)]
-    base = next((fp16 if result["precision"] == "FP16" else fp32
+    base = next((fp16 if result["precision"] in ("FP16", "BF16") else fp32
                  for minimum, fp32, fp16 in tiers if budget >= minimum), None)
     if base is None:
         notes.append("Less than 2 GiB of VRAM is available. Free GPU memory and scan again; a workable batch cannot be recommended from this snapshot.")
@@ -147,12 +154,12 @@ def suggest_settings(hardware, sample_rate="32k", precision="FP32", selection=AU
     return result
 
 
-def recommendation_report(hardware, sample_rate="32k", precision="FP32", selection=AUTO_GPU):
+def recommendation_report(hardware, sample_rate="32k", precision="Auto", selection=AUTO_GPU):
     result = suggest_settings(hardware, sample_rate, precision, selection)
     gpu = result["gpu"]
     rows = [
         ("Sample Rate", result["sample_rate"], "32k is the initial baseline; higher rates require matching pretrains and more resources."),
-        ("Training Precision", result["precision"], "FP32 default; FP16 is optional only where appropriate."),
+        ("Training Precision", result["precision"], "Auto uses BF16 on supported RTX 30, 40 and 50 GPUs."),
         ("Batch Size", result["batch_size"] if result["batch_size"] is not None else "Not recommended yet", "Conservative estimate for this scan, rate and precision; not a benchmark."),
         ("CPU Threads", result["cpu_threads"], "Leaves CPU headroom and is reduced when available RAM is low."),
         ("Pitch Extraction", result["pitch_method"], "RMVPE on GPU when memory permits, otherwise CPU RMVPE."),

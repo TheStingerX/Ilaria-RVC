@@ -17,6 +17,14 @@ The full Windows ZIP is for NVIDIA GPUs and includes Python 3.10, PyTorch 2.10, 
 | `docs/` | Changelog, feature overview, and upstream documentation |
 | `notebooks/` | Kaggle, Google Colab, and Lightning AI Studio notebooks |
 
+## Training precision
+
+Automatic precision uses native BF16 on RTX 30, 40 and 50 series when every selected GPU supports it. Kaggle T4 uses FP16 and other setups default to FP32.
+
+Turn off **Automatic training precision** in Training Settings to choose a supported precision manually. Ilaria RVC remembers this choice. Resuming keeps the saved precision unless you enable **Allow changing precision for saved training**.
+
+BF16 uses mixed precision in the trainer. Feature extraction uses FP32 for BF16 runs, and model exports retain the existing RVC format.
+
 ## Updating from 2.4.0 or 2.4.1
 
 Open **Other → Update Ilaria RVC** to install 2.4.2. Kokoro can be installed separately in **Inference → TTS**.

@@ -40,14 +40,15 @@ try:
     if torch.xpu.is_available():
         from infer.modules.ipex import ipex_init
         from infer.modules.ipex.gradscaler import gradscaler_init
-        from torch.xpu.amp import autocast
 
         GradScaler = gradscaler_init()
         ipex_init()
     else:
-        from torch.cuda.amp import GradScaler, autocast
+        from torch.cuda.amp import GradScaler
 except Exception:
-    from torch.cuda.amp import GradScaler, autocast
+    from torch.cuda.amp import GradScaler
+
+from ilaria_training_precision import config_precision, describe_cuda, validate_device_precision
 
 torch.backends.cudnn.deterministic = False
 torch.backends.cudnn.benchmark = False
@@ -131,6 +132,10 @@ def main():
     from configs.config import require_supported_blackwell
 
     n_gpus = torch.cuda.device_count()
+    precision = config_precision(hps.train)
+    if precision == "BF16":
+        validate_device_precision(precision, describe_cuda(torch.cuda))
+    print(f"Training precision: {precision}", flush=True)
     for index in range(n_gpus):
         require_supported_blackwell(index)
 
@@ -174,6 +179,7 @@ def run(
     hps,
 ):
     global global_step
+    precision = config_precision(hps.train)
     process_policy = configure_training_process()
     if rank == 0:
         logger = utils.get_logger(hps.model_dir)
@@ -229,7 +235,7 @@ def run(
             hps.data.filter_length // 2 + 1,
             hps.train.segment_size // hps.data.hop_length,
             **hps.model,
-            is_half=hps.train.fp16_run,
+            is_half=precision == "FP16",
             sr=hps.sample_rate,
         )
     else:
@@ -237,7 +243,7 @@ def run(
             hps.data.filter_length // 2 + 1,
             hps.train.segment_size // hps.data.hop_length,
             **hps.model,
-            is_half=hps.train.fp16_run,
+            is_half=precision == "FP16",
         )
     selected_vocoder = getattr(hps.train, "vocoder", "HiFi-GAN")
     net_g = apply_vocoder(net_g, selected_vocoder, hps.version, hps.if_f0, hps.sample_rate)
@@ -324,7 +330,7 @@ def run(
         optim_d, gamma=hps.train.lr_decay, last_epoch=-1 if saved_state is not None else epoch_str - 2
     )
 
-    scaler = GradScaler(enabled=hps.train.fp16_run)
+    scaler = GradScaler(enabled=precision == "FP16")
     if saved_state is not None:
         restore_runtime_state(saved_state, [scheduler_g, scheduler_d], scaler, rank)
     hps.resume_epoch = epoch_str
@@ -388,6 +394,13 @@ def run(
 def train_and_evaluate(
     rank, epoch, hps, nets, optims, schedulers, scaler, loaders, logger, writers, cache, epoch_eta=None, preview=None, signature=None
 ):
+    precision = config_precision(hps.train)
+    amp_dtype = torch.bfloat16 if precision == "BF16" else torch.float16
+
+    def autocast(enabled=True):
+        device = "xpu" if hasattr(torch, "xpu") and torch.xpu.is_available() and not torch.cuda.is_available() else "cuda"
+        return torch.autocast(device_type=device, dtype=amp_dtype, enabled=enabled and precision != "FP32")
+
     net_g, net_d = nets
     optim_g, optim_d = optims
     scheduler_g, scheduler_d = schedulers
@@ -527,7 +540,7 @@ def train_and_evaluate(
             # wave_lengths = wave_lengths.cuda(rank, non_blocking=True)
 
         # Calculate
-        with autocast(enabled=hps.train.fp16_run):
+        with autocast():
             if hps.if_f0 == 1:
                 (
                     y_hat,
@@ -566,7 +579,7 @@ def train_and_evaluate(
                     hps.data.mel_fmin,
                     hps.data.mel_fmax,
                 )
-            if hps.train.fp16_run == True:
+            if precision == "FP16":
                 y_hat_mel = y_hat_mel.half()
             wave = commons.slice_segments(
                 wave, ids_slice * hps.data.hop_length, hps.train.segment_size
@@ -588,13 +601,14 @@ def train_and_evaluate(
             optim_d.zero_grad(set_to_none=True)
 
         with frozen_discriminator(net_d):
-            with autocast(enabled=hps.train.fp16_run):
+            with autocast():
                 # Generator
                 y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = net_d(wave, y_hat)
                 with autocast(enabled=False):
                     loss_mel = (refinegan_mel_loss(wave, y_hat, hps.data.sampling_rate) * hps.train.c_mel / 3.0
                                 if getattr(hps.train, "vocoder", "HiFi-GAN") == "RefineGAN"
-                                else F.l1_loss(y_mel, y_hat_mel) * hps.train.c_mel)
+                                else F.l1_loss(y_mel.float(), y_hat_mel.float()) * hps.train.c_mel
+                                if precision == "BF16" else F.l1_loss(y_mel, y_hat_mel) * hps.train.c_mel)
                     loss_kl = kl_loss(z_p, logs_q, m_p, logs_p, z_mask) * hps.train.c_kl
                     loss_fm = feature_loss(fmap_r, fmap_g)
                     loss_gen, losses_gen = generator_loss(y_d_hat_g)

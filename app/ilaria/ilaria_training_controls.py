@@ -48,7 +48,7 @@ def control_updates(root, version, vocoder, rate, pitch, embedder, target, cache
         update(original_vocoder, vocoder, choices=vocoders, interactive=len(vocoders)>1),
         update(original_embedder, embedder, choices=embedders, interactive=len(embedders)>1),
         update(cache, selected_cache, interactive=cache_enabled),
-        update(precision, selected_precision, choices=['FP16','FP32'] if cuda else ['FP32'], interactive=cuda),
+        update(precision, selected_precision),
         update(pretrain, selected, choices=choices),
         g,
         d,

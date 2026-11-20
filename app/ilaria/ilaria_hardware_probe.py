@@ -194,13 +194,16 @@ def collect_hardware(root=None):
                 if visibility is not None:
                     mapped = [value.strip() for value in visibility.split(",")]
                     training_index = int(mapped[index]) if index < len(mapped) and mapped[index].isdigit() else None
+                from ilaria_training_precision import describe_cuda
+
+                _, native_bf16 = describe_cuda(torch.cuda, str(training_index if training_index is not None else index))[0]
                 result["devices"].append({
                     "index": index, "name": str(properties.name),
                     "training_index": training_index,
                     "total_gib": properties.total_memory / GIB,
                     "free_gib": row["free_gib"] if row else None,
                     "compute_capability": "%s.%s" % (major, minor),
-                    "compatible": supported, "reason": reason,
+                    "compatible": supported, "reason": reason, "bf16": native_bf16,
                     "driver": row["driver"] if row else None,
                 })
             except Exception as error:

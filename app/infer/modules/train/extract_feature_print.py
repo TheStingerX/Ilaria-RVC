@@ -20,7 +20,7 @@ def parse_extraction_args(argv):
     parser.add_argument("i_part", type=int)
     parser.add_argument("paths", nargs="+", metavar="[GPU] EXP_DIR VERSION")
     parser.add_argument("--embedder", default="contentvec")
-    parser.add_argument("--precision", choices=("FP16", "FP32"), default="FP32")
+    parser.add_argument("--precision", choices=("BF16", "FP16", "FP32"), default="FP32")
     args = parser.parse_args(argv)
     if len(args.paths) == 2:
         args.i_gpu = None
