@@ -1,3 +1,4 @@
+import re
 """User-selected pretrained catalog; source filenames verified on 2026-11-05."""
 from urllib.parse import quote
 CATALOG = ({'name': 'DMR v2', 'repo': 'ourbz/DMR-V2-ReUpload', 'g': 'G_DMR-V2.pth', 'd': 'D_DMR-V2.pth', 'sample_rate': 32000, 'vocoder': 'HiFi-GAN', 'embedder': 'Not specified', 'variant': '', 'note': '', 'label': 'DMR v2 | 32 kHz | HiFi-GAN'}, {'name': 'GuideVocalPretrain', 'repo': 'Essid/GuideVocalPretrain', 'g': 'G_GuideVocalPretrain.pth', 'd': 'D_GuideVocalPretrain.pth', 'sample_rate': 48000, 'vocoder': 'HiFi-GAN', 'embedder': 'Not specified', 'variant': '', 'note': '', 'label': 'GuideVocalPretrain | 48 kHz | HiFi-GAN'}, {'name': 'IMA', 'repo': 'Loren85/IMA-TEST-V1', 'g': 'G_2333333.pth', 'd': 'D_2333333.pth', 'sample_rate': 32000, 'vocoder': 'HiFi-GAN', 'embedder': 'Not specified', 'variant': '', 'note': '', 'label': 'IMA | 32 kHz | HiFi-GAN'}, {'name': 'Itaila', 'repo': 'TheStinger/itaila', 'g': 'ItaIla_32k_G.pth', 'd': 'ItaIla_32k_D.pth', 'sample_rate': 32000, 'vocoder': 'Not specified', 'embedder': 'Not specified', 'variant': '', 'note': '', 'label': 'Itaila | 32 kHz'}, {'name': 'KLM - BeatzForge V2', 'repo': 'SeoulStreamingStation/KLM_BEATMASTER', 'g': 'G_BeatzForge_V2_32k.pth', 'd': 'D_BeatzForge_V2_32k.pth', 'sample_rate': 32000, 'vocoder': 'HiFi-GAN', 'embedder': 'Not specified', 'variant': '', 'note': '', 'label': 'KLM - BeatzForge V2 | 32 kHz | HiFi-GAN'}, {'name': 'KLM 4 HiFi-GAN', 'repo': 'SeoulStreamingStation/KLM49_HFG', 'g': 'G_KLM_HFG_32k.pth', 'd': 'D_KLM_HFG_32k.pth', 'sample_rate': 32000, 'vocoder': 'HiFi-GAN', 'embedder': 'Not specified', 'variant': '', 'note': '', 'label': 'KLM 4 HiFi-GAN | 32 kHz | HiFi-GAN'}, {'name': 'KLM 4 HiFi-GAN', 'repo': 'SeoulStreamingStation/KLM49_HFG', 'g': 'G_KLM_HFG_40k.pth', 'd': 'D_KLM_HFG_40k.pth', 'sample_rate': 40000, 'vocoder': 'HiFi-GAN', 'embedder': 'Not specified', 'variant': '', 'note': '', 'label': 'KLM 4 HiFi-GAN | 40 kHz | HiFi-GAN'}, {'name': 'KLM 4 HiFi-GAN', 'repo': 'SeoulStreamingStation/KLM49_HFG', 'g': 'G_KLM_HFG_48k.pth', 'd': 'D_KLM_HFG_48k.pth', 'sample_rate': 48000, 'vocoder': 'HiFi-GAN', 'embedder': 'Not specified', 'variant': '', 'note': '', 'label': 'KLM 4 HiFi-GAN | 48 kHz | HiFi-GAN'}, {'name': 'KLM 5 RefineGAN', 'repo': 'SeoulStreamingStation/KLM5', 'g': 'G_KLM50_RFG_32Khz.pth', 'd': 'D_KLM50_RFG_32Khz.pth', 'sample_rate': 32000, 'vocoder': 'RefineGAN', 'embedder': 'Not specified', 'variant': '', 'note': '', 'label': 'KLM 5 RefineGAN | 32 kHz | RefineGAN'}, {'name': 'KLM 5 RefineGAN', 'repo': 'SeoulStreamingStation/KLM5', 'g': 'G_KLM50_RFG_40Khz.pth', 'd': 'D_KLM50_RFG_40Khz.pth', 'sample_rate': 40000, 'vocoder': 'RefineGAN', 'embedder': 'Not specified', 'variant': '', 'note': '', 'label': 'KLM 5 RefineGAN | 40 kHz | RefineGAN'}, {'name': 'KLM 6.1 (Experimental V3 L608)', 'repo': 'SeoulStreamingStation/KLM6_Experimental', 'g': 'G_KLM6_Exp3_L6_32k.pth', 'd': 'D_KLM6_Exp3_L6_32k.pth', 'sample_rate': 32000, 'vocoder': 'Not specified', 'embedder': 'Not specified', 'variant': 'Linked Exp3 L6 files', 'note': 'The supplied description also calls this KLM 6.2; the exact linked Exp3_L6 pair is used.', 'label': 'KLM 6.1 (Experimental V3 L608) | Linked Exp3 L6 files | 32 kHz'}, {'name': 'Mandagues V2', 'repo': 'juaow/mandaguesv2', 'g': 'mandaguesG_40k.pth', 'd': 'mandaguesD_40k.pth', 'sample_rate': 40000, 'vocoder': 'HiFi-GAN', 'embedder': 'Not specified', 'variant': '', 'note': '', 'label': 'Mandagues V2 | 40 kHz | HiFi-GAN'}, {'name': 'Nanashi Anime', 'repo': 'shiromiya/nanashi-pretrain', 'g': 'v1_anime/normal/G_nanashi_anime_384e.pth', 'd': 'v1_anime/normal/D_nanashi_anime_384e.pth', 'sample_rate': 32000, 'vocoder': 'HiFi-GAN', 'embedder': 'Not specified', 'variant': 'Normal', 'note': '', 'label': 'Nanashi Anime | Normal | 32 kHz | HiFi-GAN'}, {'name': 'Nanashi v1', 'repo': 'shiromiya/nanashi-pretrain', 'g': 'v1.7/G_nanashi_v1_7.pth', 'd': 'v1.7/D_nanashi_v1_7.pth', 'sample_rate': 32000, 'vocoder': 'HiFi-GAN', 'embedder': 'Not specified', 'variant': 'v1.7', 'note': '', 'label': 'Nanashi v1 | v1.7 | 32 kHz | HiFi-GAN'}, {'name': 'Nanashi v2 Beta', 'repo': 'shiromiya/nanashi-pretrain', 'g': 'v2/base/G_nanashi_v2_800e_1005600s.pth', 'd': 'v2/base/D_nanashi_v2_800e_1005600s.pth', 'sample_rate': 32000, 'vocoder': 'HiFi-GAN', 'embedder': 'Not specified', 'variant': 'Base', 'note': '', 'label': 'Nanashi v2 Beta | Base | 32 kHz | HiFi-GAN'}, {'name': 'Nanashi v2 Beta', 'repo': 'shiromiya/nanashi-pretrain', 'g': 'v2/finetune/G_nanashi_v2_ft_270e_143910s.pth', 'd': 'v2/finetune/D_nanashi_v2_ft_270e_143910s.pth', 'sample_rate': 32000, 'vocoder': 'HiFi-GAN', 'embedder': 'Not specified', 'variant': 'Fine-tuned', 'note': '', 'label': 'Nanashi v2 Beta | Fine-tuned | 32 kHz | HiFi-GAN'}, {'name': 'Ov2Super', 'repo': 'poiqazwsx/Ov2Super32kfix', 'g': 'f0Ov2Super32kG.pth', 'd': 'f0Ov2Super32kD.pth', 'sample_rate': 32000, 'vocoder': 'Not specified', 'embedder': 'Not specified', 'variant': '', 'note': '', 'label': 'Ov2Super | 32 kHz'}, {'name': 'PaBP', 'repo': 'Razer112/pabp-v.5', 'g': 'G_31132.pth', 'd': 'D_31132.pth', 'sample_rate': 32000, 'vocoder': 'HiFi-GAN', 'embedder': 'Not specified', 'variant': '', 'note': '', 'label': 'PaBP | 32 kHz | HiFi-GAN'}, {'name': 'RefGanVCTKV2', 'repo': 'SimplCup/RefGanVCTKV2', 'g': 'f0G32k.pth', 'd': 'f0D32k.pth', 'sample_rate': 32000, 'vocoder': 'RefineGAN', 'embedder': 'Not specified', 'variant': '', 'note': '', 'label': 'RefGanVCTKV2 | 32 kHz | RefineGAN'}, {'name': 'RefGanVCTKV2', 'repo': 'SimplCup/RefGanVCTKV2', 'g': 'f0G40k.pth', 'd': 'f0D40k.pth', 'sample_rate': 40000, 'vocoder': 'RefineGAN', 'embedder': 'Not specified', 'variant': '', 'note': '', 'label': 'RefGanVCTKV2 | 40 kHz | RefineGAN'}, {'name': 'RefineGAN Base Pretrains (Experimental)', 'repo': 'Aznamir/RefineGAN', 'g': 'RFGv3_CV_G_1771500.pth', 'd': 'RFGv3_CV_D_1771500.pth', 'sample_rate': 32000, 'vocoder': 'RefineGAN', 'embedder': 'contentvec', 'variant': 'v3', 'note': '', 'label': 'RefineGAN Base Pretrains (Experimental) | v3 | 32 kHz | RefineGAN | contentvec'}, {'name': 'RefineGAN Base Pretrains (Experimental)', 'repo': 'Aznamir/RefineGAN', 'g': 'RFGv3_SPv2_G_1771500.pth', 'd': 'RFGv3_SPv2_D_1771500.pth', 'sample_rate': 32000, 'vocoder': 'RefineGAN', 'embedder': 'spin-v2', 'variant': 'v3', 'note': '', 'label': 'RefineGAN Base Pretrains (Experimental) | v3 | 32 kHz | RefineGAN | spin-v2'}, {'name': 'RefineGanVCTKV1', 'repo': 'SimplCup/RefineGanVCTKV1', 'g': 'f0G_RefineGanVCTKV1.pth', 'd': 'f0D_RefineGanVCTKV1.pth', 'sample_rate': 44100, 'vocoder': 'RefineGAN', 'embedder': 'Not specified', 'variant': '', 'note': '', 'label': 'RefineGanVCTKV1 | 44.1 kHz | RefineGAN'}, {'name': 'Rigel', 'repo': 'MUSTAR/Rigel-rvc-base-pretrained-model', 'g': 'Rigel_32k_Base_and_FineTuned/Base-model_32k_fp32/G_Rigel_32k_3890220.pth', 'd': 'Rigel_32k_Base_and_FineTuned/Base-model_32k_fp32/D_Rigel_32k_3890220.pth', 'sample_rate': 32000, 'vocoder': 'Not specified', 'embedder': 'Not specified', 'variant': 'Base', 'note': '', 'label': 'Rigel | Base | 32 kHz'}, {'name': 'Rigel', 'repo': 'MUSTAR/Rigel-rvc-base-pretrained-model', 'g': 'Rigel_32k_Base_and_FineTuned/FineTuned-model_32k_fp32/G_Rigel_32k_fp32_2854856.pth', 'd': 'Rigel_32k_Base_and_FineTuned/FineTuned-model_32k_fp32/D_Rigel_32k_fp32_2854856.pth', 'sample_rate': 32000, 'vocoder': 'Not specified', 'embedder': 'Not specified', 'variant': 'Fine-tuned', 'note': '', 'label': 'Rigel | Fine-tuned | 32 kHz'}, {'name': 'SingerPreTrain', 'repo': 'Sztef/SingerPreTrained', 'g': 'update/f0G_SingerPreTrain.pth', 'd': 'update/f0D_SingerPreTrain.pth', 'sample_rate': 32000, 'vocoder': 'HiFi-GAN', 'embedder': 'Not specified', 'variant': 'Updated', 'note': '', 'label': 'SingerPreTrain | Updated | 32 kHz | HiFi-GAN'}, {'name': 'Titan', 'repo': 'blaise-tk/TITAN', 'g': 'models/medium/32k/pretrained/G-f032k-TITAN-Medium.pth', 'd': 'models/medium/32k/pretrained/D-f032k-TITAN-Medium.pth', 'sample_rate': 32000, 'vocoder': 'HiFi-GAN', 'embedder': 'Not specified', 'variant': 'Medium', 'note': '', 'label': 'Titan | Medium | 32 kHz | HiFi-GAN'}, {'name': 'Titan', 'repo': 'blaise-tk/TITAN', 'g': 'models/medium/40k/pretrained/G-f040k-TITAN-Medium.pth', 'd': 'models/medium/40k/pretrained/D-f040k-TITAN-Medium.pth', 'sample_rate': 40000, 'vocoder': 'HiFi-GAN', 'embedder': 'Not specified', 'variant': 'Medium', 'note': '', 'label': 'Titan | Medium | 40 kHz | HiFi-GAN'}, {'name': 'Titan', 'repo': 'blaise-tk/TITAN', 'g': 'models/medium/48k/pretrained/G-f048k-TITAN-Medium.pth', 'd': 'models/medium/48k/pretrained/D-f048k-TITAN-Medium.pth', 'sample_rate': 48000, 'vocoder': 'HiFi-GAN', 'embedder': 'Not specified', 'variant': 'Medium', 'note': '', 'label': 'Titan | Medium | 48 kHz | HiFi-GAN'}, {'name': 'UKA', 'repo': 'Plasmati/Pretrains', 'g': 'UKA-Pretrain-G.pth', 'd': 'UKA-Pretrain-D.pth', 'sample_rate': 32000, 'vocoder': 'HiFi-GAN', 'embedder': 'Not specified', 'variant': '', 'note': '', 'label': 'UKA | 32 kHz | HiFi-GAN'})
@@ -50,6 +51,97 @@ def _politrees_entry(name, rate, folder, generator, discriminator):
 
 CATALOG = tuple(sorted(
     (*CATALOG, *(_politrees_entry(*entry) for entry in POLITREES_PRETRAINS)),
+    key=lambda entry: entry['label'].casefold(),
+))
+
+
+KLM_PRETRAIN_STEMS = {
+    'KLM4': (
+        'KLM40_32k.pth',
+        'KLM40_40k.pth',
+        'KLM40_48k.pth',
+        'KLM41_T2_32k.pth',
+    ),
+    'KLM4.1': (
+        'KLM41_32k.pth',
+        'KLM41_48k.pth',
+    ),
+    'KLM4.2': (
+        'KLM42_32k_x10.pth',
+    ),
+    'KLM43': (
+        'KLM43_x1_32k.pth',
+        'KLM43_x2_32k.pth',
+        'KLM43_X3_32k.pth',
+        'KLM43_X3_40k.pth',
+        'KLM43_X3_48k.pth',
+        'KLM43_x4_32k.pth',
+        'KLM43_x4_40k.pth',
+        'KLM43_x4_48k.pth',
+    ),
+    'KLM4.4': (
+        'KLM44_X1_32Khz.pth',
+        'KLM44_X2_32k.pth',
+        'KLM44_X2B_32k.pth',
+    ),
+    'KLM6_Experimental': (
+        'KLM6exp_32khz.pth',
+        'KLM6exp_48khz.pth',
+        'KLM6_Exp2_32khz.pth',
+        'KLM6_Exp2_40khz.pth',
+        'Dev_KLM61Exp_48khz.pth',
+        'Dev_KLM61Exp_Ranger25_48khz.pth',
+    ),
+    'RVC_KLM9_HFG_PretrainModel': (
+        'KLM9T_HFG_32k.pth',
+    ),
+    'RVC_KLM-X-10_Pretrained-Model': (
+        'KLM-X_Base_32k.pth',
+    ),
+    'KLM_RVC_KLM-HF_Trainer': (
+        'KLM-X1_32khz.pth',
+        'KLM_HF_Mini_T_32k.pth',
+        'KLM_RVC_PT_32k.pth',
+        'KLM_RVC_PT_40k.pth',
+        'KLM_RVC_PT_48k.pth',
+        'RVC_OG_32k.pth',
+        'RVC_OG_40k.pth',
+        'RVC_OG_48k.pth',
+    ),
+    'KLM_KpopUniverse': (
+        'KLM_KpopUniverse_32k.pth',
+        'KLM_KpopUniverse_40k.pth',
+        'KLM_KpopUniverse_48k.pth',
+        'KLM_KPU_II_32k.pth',
+        'KLM_KPU_II_40k.pth',
+    ),
+    'BlackTone_RVC_Pretrained': (
+        'BlackTone_32k.pth',
+        'Large_BlackTone_32k.pth',
+    ),
+    'KLM_BEATMASTER': (
+        'KLM_BeatMasterV1_48k.pth',
+        'KLM_BeatzForge_48k.pth',
+    ),
+}
+
+
+def _klm_entry(repository, stem):
+    rate_match = re.search(r'_(32|40|48)k(?:hz)?(?=_|\.pth$)', stem, re.IGNORECASE)
+    rate = int(rate_match[1])
+    name = (stem[:rate_match.start()] + stem[rate_match.end():-4]).replace('_', ' ')
+    vocoder = 'HiFi-GAN' if '_HFG_' in stem else 'Not specified'
+    return {
+        'name': name, 'repo': 'SeoulStreamingStation/' + repository,
+        'g': 'G_' + stem, 'd': 'D_' + stem,
+        'sample_rate': rate * 1000, 'vocoder': vocoder, 'embedder': 'Not specified',
+        'variant': '', 'label': f'{name} | {rate} kHz',
+        'note': 'Publisher G/D files verified. Training compatibility has not been tested in Ilaria RVC.',
+    }
+
+
+CATALOG = tuple(sorted(
+    (*CATALOG, *(_klm_entry(repo, stem) for repo, stems in KLM_PRETRAIN_STEMS.items() for stem in stems)),
     key=lambda entry: entry['label'].casefold(),
 ))
 

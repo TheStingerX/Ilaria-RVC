@@ -286,3 +286,8 @@ Requires Ilaria RVC 2.4.2.
 - Added bidirectional .pth and .safetensors conversion in Other. The converter preserves RVC metadata, restores compatible external metadata, keeps the original filename and can move an inference-ready .pth into models. Inference now explains when a file lacks the voice configuration.
 
 Update from Ilaria RVC 2.4.4 in **Other → Update Ilaria RVC**. The converter downloads Safetensors on first use if needed.
+
+## 2.4.6
+
+- Added KLM Vocal ContentVec as an optional download for Inference and RVC v2 Training.
+- Added 43 verified KLM G/D pairs to Recommended pretrained models, with sample rates listed. Training compatibility varies by pair.

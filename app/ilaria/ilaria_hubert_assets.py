@@ -8,6 +8,7 @@ import shutil
 from tempfile import TemporaryDirectory
 from threading import Lock
 from urllib.request import Request, urlopen
+from zipfile import BadZipFile, ZipFile
 
 
 REVISION = "3ff370b7023086f57e200ef86a9a251ddf4da472"
@@ -18,9 +19,18 @@ HUBERT_EMBEDDERS = {
     "japanese-hubert-base": ("japanese_hubert_base", 377554841, "6c023ccb71e4c2b5a324c94fc5ebe12403d3081c5f370df229892419996fd113"),
     "korean-hubert-base": ("korean_hubert_base", 377554841, "931f6232879f8eadf7dbd9e00e1fa4cac61ad269af89d509b2ed75009b1a02c5"),
 }
+KLM_VOCAL = "klm-vocal-contentvec"
+_KLM_URL = (
+    "https://huggingface.co/SeoulStreamingStation/KLM-Vocal-Embedder_ContantVEC_For_RVC/resolve/"
+    "738b4b62e657e8ecd83176db22171683bc943140/KLM-VOCAL-Embedder_RVC.zip"
+)
+_KLM_SIZE = 263406923
+_KLM_SHA256 = "a1311c03958fa046c873eb340f1f409390340ff53d21fccdb51681da1d471e0a"
+_klm_lock = Lock()
+
 INFERENCE_EMBEDDERS = (
     "contentvec", "spin", "spin-v2", "chinese-hubert-base",
-    "japanese-hubert-base", "korean-hubert-base", "portuguese-hubert-base",
+    "japanese-hubert-base", "korean-hubert-base", "portuguese-hubert-base", KLM_VOCAL,
 )
 PORTUGUESE_HUBERT = "portuguese-hubert-base"
 PORTUGUESE_URL = (
@@ -176,7 +186,51 @@ def download_portuguese_hubert(root):
     return destination
 
 
+def download_klm_vocal(root):
+    directory = _root(root)
+    destination = directory / KLM_VOCAL
+    with _klm_lock:
+        if _pair(destination):
+            return destination
+        if destination.exists():
+            raise ValueError("The KLM Vocal embedder folder is incomplete.")
+        directory.mkdir(parents=True, exist_ok=True)
+        with TemporaryDirectory(prefix=".klm-vocal-", dir=directory) as temporary:
+            archive = Path(temporary) / "model.zip"
+            stage = Path(temporary) / "files"
+            stage.mkdir()
+            digest = hashlib.sha256()
+            received = 0
+            with urlopen(Request(_KLM_URL, headers={"User-Agent": "Ilaria-RVC"}), timeout=75) as response, archive.open("xb") as output:
+                for chunk in iter(lambda: response.read(4 * 1024**2), b""):
+                    received += len(chunk)
+                    if received > _KLM_SIZE:
+                        raise ValueError("The KLM Vocal archive exceeds the expected size.")
+                    digest.update(chunk)
+                    output.write(chunk)
+            if received != _KLM_SIZE or digest.hexdigest() != _KLM_SHA256:
+                raise ValueError("The KLM Vocal archive failed verification.")
+            try:
+                with ZipFile(archive) as package:
+                    for source, target, limit in (
+                        ("config.json", "config.json", MAX_CONFIG_BYTES),
+                        ("KLM-VOCAL.bin", "pytorch_model.bin", MAX_WEIGHTS_BYTES),
+                    ):
+                        member = package.getinfo(source)
+                        if not 0 < member.file_size <= limit:
+                            raise ValueError(f"Invalid KLM Vocal file size for {source}.")
+                        with package.open(member) as content, (stage / target).open("xb") as output:
+                            shutil.copyfileobj(content, output, length=4 * 1024**2)
+            except (BadZipFile, KeyError) as error:
+                raise ValueError("The KLM Vocal archive has unexpected contents.") from error
+            _validate_config(stage / "config.json")
+            stage.rename(destination)
+    return destination
+
+
 def inference_embedder_directory(root, name):
+    if name == KLM_VOCAL:
+        return download_klm_vocal(root)
     if name in HUBERT_EMBEDDERS:
         return download_builtin_embedder(root, name)
     if name.startswith("custom:"):
@@ -188,6 +242,8 @@ def inference_embedder_directory(root, name):
 
 
 def inference_embedder_installed(root, name):
+    if name == KLM_VOCAL:
+        return _pair(_root(root) / name)
     if name == PORTUGUESE_HUBERT:
         path = portuguese_hubert_path(root)
         return path.is_file() and path.stat().st_size == PORTUGUESE_SIZE

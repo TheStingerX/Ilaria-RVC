@@ -3866,7 +3866,7 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
 
             with gr.Accordion("Download embedders", open=False, elem_id="embedder-download"):
                 gr.Markdown(TRAINING_ASSET_RECOMMENDATION, elem_id="embedder-asset-recommendation")
-                from ilaria_hubert_assets import (HUBERT_EMBEDDERS, PORTUGUESE_HUBERT, download_builtin_embedder,
+                from ilaria_hubert_assets import (HUBERT_EMBEDDERS, PORTUGUESE_HUBERT, KLM_VOCAL, download_builtin_embedder, download_klm_vocal,
                                                   download_portuguese_hubert, inference_embedder_installed)
                 from ilaria_embedders import ensure_embedder
 
@@ -3878,6 +3878,8 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                     try:
                         if name == "spin-v2":
                             yield from ensure_embedder(now_dir, name)
+                        elif name == KLM_VOCAL:
+                            download_klm_vocal(now_dir)
                         elif name == PORTUGUESE_HUBERT:
                             download_portuguese_hubert(now_dir)
                         else:
@@ -3887,7 +3889,7 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                         return
                     yield f"{name} is installed and ready."
 
-                embedder_choice = gr.Dropdown([*HUBERT_EMBEDDERS, PORTUGUESE_HUBERT, "spin-v2"], value="spin", label="Embedder")
+                embedder_choice = gr.Dropdown([*HUBERT_EMBEDDERS, PORTUGUESE_HUBERT, "spin-v2", KLM_VOCAL], value="spin", label="Embedder")
                 embedder_button = gr.Button("Download selected embedder", variant="primary")
                 embedder_log = gr.Textbox(label="Embedder download status", interactive=False)
                 embedder_button.click(download_selected_embedder, [embedder_choice], [embedder_log])

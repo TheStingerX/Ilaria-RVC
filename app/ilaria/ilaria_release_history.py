@@ -1,6 +1,7 @@
 """Offline release notes, newest first."""
 
 RELEASE_HISTORY = (
+    ('2.4.6', '- Added KLM Vocal ContentVec as an optional download for Inference and RVC v2 Training.\n- Added 43 verified KLM G/D pairs to Recommended pretrained models, with sample rates listed. Training compatibility varies by pair.'),
     ('2.4.5', '- Added bidirectional .pth and .safetensors conversion in Other. The converter preserves RVC metadata, restores compatible external metadata, keeps the original filename and can move an inference-ready .pth into models. Inference now explains when a file lacks the voice configuration.'),
     ('2.4.4', '- Removed the six Legacy Core pretrained download options from Lyery after the source files were taken down. Previously downloaded weights remain available for training.'),
     ('2.4.3', '- Added native BF16 mixed-precision training. Auto selects it on RTX 30, 40 and 50 series when all selected GPUs support it. Kaggle T4 defaults to FP16.\n- Manual FP16 and FP32 selections are remembered. Existing training keeps its saved precision unless changed explicitly. The Training Queue and PC training advisor use the new precision settings.\n- BF16 training keeps feature extraction in FP32 and preserves the RVC model export format.'),
