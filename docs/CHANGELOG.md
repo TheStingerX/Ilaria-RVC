@@ -280,3 +280,9 @@ Requires Ilaria RVC 2.4.2.
 ## 2.4.4
 
 - Removed the six Legacy Core pretrained download options from Lyery after the source files were taken down. Previously downloaded weights remain available for training.
+
+## 2.4.5
+
+- Added bidirectional .pth and .safetensors conversion in Other. The converter preserves RVC metadata, restores compatible external metadata, keeps the original filename and can move an inference-ready .pth into models. Inference now explains when a file lacks the voice configuration.
+
+The manual patch requires Ilaria RVC 2.4.4 and the safetensors package.

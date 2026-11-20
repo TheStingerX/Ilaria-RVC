@@ -95,7 +95,12 @@ class VC:
         signature = (person, stat.st_mtime_ns, stat.st_size)
         if not reuse_loaded or signature != self._voice_file:
             self._voice_file = None
-            self._load_voice(person)
+            self.cpt = self.net_g = self.pipeline = None
+            try:
+                self._load_voice(person)
+            except Exception:
+                self.cpt = self.net_g = self.pipeline = None
+                raise
             self._voice_file = signature
         for control in (to_return_protect0, to_return_protect1):
             control["visible"] = self.if_f0 != 0
@@ -119,7 +124,14 @@ class VC:
     def _load_voice(self, person):
         logger.info(f"Loading: {person}")
 
-        self.cpt = torch.load(person, map_location="cpu", weights_only=True)
+        checkpoint = torch.load(person, map_location="cpu", weights_only=True)
+        if not (isinstance(checkpoint, dict)
+                and isinstance(checkpoint.get("config"), list)
+                and len(checkpoint["config"]) >= 3
+                and isinstance(checkpoint.get("weight"), dict)
+                and "emb_g.weight" in checkpoint["weight"]):
+            raise ValueError("This file is missing the voice configuration or weights required for RVC Inference. Use the original RVC voice export.")
+        self.cpt = checkpoint
         self.tgt_sr = self.cpt["config"][-1]
         self.cpt["config"][-3] = self.cpt["weight"]["emb_g.weight"].shape[0]  # n_spk
         self.if_f0 = self.cpt.get("f0", 1)

@@ -45,3 +45,4 @@ fastapi==0.88
 ffmpy==0.3.1
 python-dotenv>=1.0.0
 av
+safetensors>=0.4.5,<1

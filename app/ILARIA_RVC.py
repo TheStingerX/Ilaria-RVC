@@ -1251,6 +1251,18 @@ def export_voice_model(model, index):
     yield from export_model(model, index, now_dir)
 
 
+def convert_model_weights(upload):
+    from ilaria_weight_converter import convert_model_file
+
+    for status, result in convert_model_file(upload, pathlib.Path(now_dir) / "TEMP" / "weight-conversions"):
+        yield status, result, result
+
+
+def install_converted_model(result):
+    from ilaria_weight_converter import move_converted_model
+
+    return move_converted_model(result, pathlib.Path(now_dir) / "TEMP" / "weight-conversions", weight_root)
+
 def update_training_controls(version, vocoder, rate, pitch, embedder, target, cache,
                              precision, pretrain, generator, discriminator, method, preview):
     from ilaria_training_controls import control_updates
@@ -2878,10 +2890,13 @@ def build_inference_audio_controls(elem_id):
 
 
 def select_voice_model_with_tts(sid, protect_single, protect_batch):
-    result = select_voice_model(sid, protect_single, protect_batch)
+    try:
+        result = select_voice_model(sid, protect_single, protect_batch)
+    except ValueError as error:
+        return (*(gr.update() for _ in range(10)), gr.update(value=str(error), visible=True))
     speaker = dict(result[0])
     speaker["value"] = 0
-    return (*result, speaker, dict(result[3]))
+    return (*result, speaker, dict(result[3]), gr.update(value="", visible=False))
 
 ILARIARVC_CSS += '\n#dataset-check-report table th, #dataset-check-report table th * {\n    color: #FFFFFF !important;\n    background-color: #62416B !important;\n}\n#dataset-check-report table td, #dataset-check-report table td * {\n    color: #F8EFFA !important;\n}\n#dataset-check-report table th, #dataset-check-report table td {\n    border-color: #C59ACD !important;\n}\n'
 
@@ -2909,7 +2924,7 @@ ILARIARVC_CSS += '\n.gradio-container #ilaria-main-tabs #dataset-upload-help {\n
 ILARIARVC_CSS += '\n.gradio-container #ilaria-main-tabs #training-queue {\n    border: 2px solid #D8B4FE !important; background: #62416B !important;\n    border-radius: 12px !important; margin: 8px 0 !important; padding: 12px !important;\n}\n#training-queue-help { padding: 12px 18px !important; text-align: center !important; }\n#training-queue-table { padding: 12px 18px !important; overflow-x: auto; }\n#training-queue-table th, #training-queue-table td { color: #FFFFFF !important; border: 1px solid #D8B4FE !important; padding: 8px 12px; }\n'
 TUTORIAL_SECTIONS += (('25. Training queue: run several models one after another', "Open Training > Training queue, below the four workflow steps. Choose a unique Model Name, Path to Dataset and all desired training/preview/notification settings above, then click Add current settings to queue. Wait for the confirmation before changing settings for the next model. Add each model separately. The queue saves a separate copy of its source audio and optional preview clip, so later uploads or changed controls cannot silently replace an earlier job's input. These copies need additional disk space.\n\nAutomatically run Process Data, Feature Extraction and Train Index is on by default. Each new job runs those three steps before Train Pth. Turn it off when that model already has suitable prepared data and you only want PTH training. Existing managed checkpoints are resumed using their original prepared files; preparation is skipped on resume to protect saved training compatibility. Keep batch size, GPU count, architecture and prepared data compatible with the checkpoint. Total Epochs is the final target, not additional epochs.\n\nClick Start queue after current operations finish. Only one queued model runs at a time. The table and Queue Log update while the page is open. Closing the browser does not stop the queue; keep Ilaria RVC's backend/CMD open. Manual training steps are blocked while the queue runs, and the updater/dataset deletion waits until it is idle. You may add another differently named job while the current model is training.\n\nPause after current model lets the entire current job finish, then leaves the remaining jobs pending. To stop PTH training at its next epoch boundary instead, use the existing Stop and save button; the queue pauses when that save is confirmed. An error also pauses the queue, rather than silently starting more jobs. Select the failed, stopped or interrupted job and choose Retry selected after fixing the cause, then Start queue again. A stopped model continues from its saved checkpoint. Missing or incompatible training state is an error, not a fresh start disguised as a resume.\n\nRemove selected job removes a nonrunning job from the list. Running jobs cannot be removed. Queue settings and source snapshots are stored locally under .ilaria-queue. On a backend restart, a previously running job is marked Interrupted and is not restarted automatically; review its log before retrying. Existing trained models and experiment checkpoints stay in their normal folders. This queue does not predict which settings or epoch will sound best; compare previews as usual."),)
 
-ILARIARVC_CSS += '\n.gradio-container #ilaria-main-tabs #other-tab #model-export {\n    border: 2px solid #D8B4FE !important; background: #62416B !important;\n    border-radius: 12px !important; margin: 8px 0 !important; padding: 12px !important;\n}\n#model-export-help { padding: 12px 18px !important; text-align: center !important; color: #F8EFFA !important; }\n'
+ILARIARVC_CSS += '\n.gradio-container #ilaria-main-tabs #other-tab #weight-converter,\n.gradio-container #ilaria-main-tabs #other-tab #model-export {\n    border: 2px solid #D8B4FE !important; background: #62416B !important;\n    border-radius: 12px !important; margin: 8px 0 !important; padding: 12px !important;\n}\n#model-export-help, #weight-converter-help { padding: 12px 18px !important; text-align: center !important; color: #F8EFFA !important; }\n'
 TUTORIAL_SECTIONS += (('26. Export a model ZIP to share', 'Open Other > Export model ZIP, below PC training advisor. Select the installed .pth under Voice Model. If one likely matching retrieval index is found, it is selected automatically; check its name. If several possible indexes exist, choose the correct one yourself. File names can suggest a match but cannot prove that a model and index were created together.\n\nClick Refresh model list if you recently trained or imported a model. Select an index from models if you have its matching retrieval file. Leave Index empty to package only the .pth, for example for a merged model without a matching index. An index alone is not a usable voice model.\n\nClick Create model ZIP and watch Export Log. When it reaches 100%, click the file under Download model ZIP to save the ZIP on your PC. It contains only the selected .pth and optional .index, directly inside the archive. It excludes dataset audio, logs, resumable checkpoints, previews, configuration and runtime files. Original files stay where they are. The recipient can use Other > Import local models to install the ZIP, then Refresh in Inference and select the voice.\n\nThe ZIP is saved temporarily inside TEMP/model-exports and is not uploaded anywhere. Download it before closing or restarting Ilaria RVC, because temporary files may be cleaned at startup. Packaging requires free disk space roughly equal to the selected files; it uses a fast ZIP method rather than promising a smaller download. Avoid exporting while the selected model or index is being saved. A changed or missing source file produces an error instead of a finished download. The tool packages files without loading neural weights or testing voice quality. ZIP percentages describe copied bytes, not training progress.'),)
 
 TUTORIAL_SECTIONS += (('27. Read index information', 'Index information is included when matching files are found under models. Each index shows its path, file size, local modification time, SHA-256 fingerprint, FAISS type, feature dimension, stored vector count, training status, distance metric and IVF cluster/search settings when available. A feature-dimension mismatch is flagged. Matching dimensions and filenames do not prove that an index belongs to the selected voice. Vectors are audio features, not a count of recordings or a dataset duration. Index files do not reliably store sample rate or model epochs. Unreadable indexes are reported without hiding the model information.'),)
@@ -3574,6 +3589,7 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                 clean_button.click(
                     fn=clean, inputs=[], outputs=[sid0], api_name="infer_clean"
                 )
+            voice_model_status = gr.Textbox(label="Voice Model Error", interactive=False, visible=False)
             with gr.TabItem(i18n("Single Inference")):
                 with gr.Column(elem_id="single-inference-controls"):
                     with gr.Column(elem_id="inference-audio-block"):
@@ -3818,7 +3834,7 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
             )
             model_selection_outputs = [
                 spk_item, protect0, protect1, file_index2, file_index4, file_index1,
-                file_index3, spk_item_batch, tts_speaker, tts_index,
+                file_index3, spk_item_batch, tts_speaker, tts_index, voice_model_status,
             ]
             sid0.change(
                 fn=select_voice_model_with_tts,
@@ -3940,6 +3956,24 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
                 merge_ratio.change(describe_merge_ratio, [merge_ratio], [merge_blend_info])
                 inspect_merge_button.click(inspect_merge_models, [merge_model_a, merge_model_b], [merge_models_log], show_progress=False, api_name="inspect_merge_models")
                 merge_models_button.click(merge_voice_models, [merge_model_a, merge_model_b, merge_ratio, merge_sample_rate, merge_output_name, merge_model_info, merge_precision], [merge_models_log], show_progress=False, api_name="merge_voice_models")
+
+            with gr.Accordion("Convert model weights", open=False, elem_id="weight-converter"):
+                gr.Markdown(
+                    "Drop a **.pth** or **.safetensors** file and click **Convert weights**. "
+                    "Download the result below. An RVC voice keeps its settings when converted back by this tool. "
+                    "A tensor-only file stays tensor-only and may need model settings to work in Inference.",
+                    elem_id="weight-converter-help",
+                )
+                weights_input = gr.File(label="Choose or drop a .pth or .safetensors file")
+                weights_button = gr.Button("Convert weights", variant="primary")
+                weights_log = gr.Textbox(label="Conversion Log", interactive=False)
+                weights_output = gr.File(label="Download converted weights", interactive=False)
+                converted_path = gr.State()
+                move_weights = gr.Button("Move .pth to models", variant="primary")
+                weights_button.click(update_operation_gate.track(convert_model_weights, "model weight conversion"), [weights_input], [weights_log, weights_output, converted_path],
+                                     show_progress=False, api_name="convert_model_weights")
+                move_weights.click(update_operation_gate.track(install_converted_model, "converted model installation"),
+                                   [converted_path], [weights_log], show_progress=False)
 
             with gr.Accordion("Export model ZIP", open=False, elem_id="model-export"):
                 gr.Markdown("Choose a Voice Model and its matching index, then click Create model ZIP. Download the file below to share it. The ZIP contains only the selected .pth and .index, with no recordings or training logs. Leave Index empty to export only the .pth.", elem_id="model-export-help")

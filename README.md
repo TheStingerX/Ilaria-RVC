@@ -1,4 +1,4 @@
-# Ilaria RVC 2.4.4
+# Ilaria RVC 2.4.5
 
 The full Windows ZIP is for NVIDIA GPUs and includes Python 3.10, PyTorch 2.10, and CUDA 12.8.
 
@@ -24,6 +24,12 @@ Automatic precision uses native BF16 on RTX 30, 40 and 50 series when every sele
 Turn off **Automatic training precision** in Training Settings to choose a supported precision manually. Ilaria RVC remembers this choice. Resuming keeps the saved precision unless you enable **Allow changing precision for saved training**.
 
 BF16 uses mixed precision in the trainer. Feature extraction uses FP32 for BF16 runs, and model exports retain the existing RVC format.
+
+## Updating to 2.4.5
+
+Ilaria RVC 2.4.5 is a manual patch for 2.4.4. Close the app, extract the ZIP into its existing `app` folder and accept file replacement. Follow the release notes to install the Safetensors dependency if needed.
+
+[Download the 2.4.5 patch](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.4.5/ILARIA_RVC-2.4.5-manual.zip?download=true) | [Installation instructions](https://huggingface.co/TheStinger/Ilaria_RVC/blob/main/releases/2.4.5/RELEASE-NOTES.md)
 
 ## Updating from 2.4.0 or 2.4.1
 
