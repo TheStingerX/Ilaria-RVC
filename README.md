@@ -27,9 +27,9 @@ BF16 uses mixed precision in the trainer. Feature extraction uses FP32 for BF16 
 
 ## Updating to 2.4.5
 
-Ilaria RVC 2.4.5 is a manual patch for 2.4.4. Close the app, extract the ZIP into its existing `app` folder and accept file replacement. Follow the release notes to install the Safetensors dependency if needed.
+From Ilaria RVC 2.4.4, open **Other → Update Ilaria RVC → Check for updates**, then choose **Download and restart**. The converter downloads the Safetensors dependency on first use if needed.
 
-[Download the 2.4.5 patch](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.4.5/ILARIA_RVC-2.4.5-manual.zip?download=true) | [Installation instructions](https://huggingface.co/TheStinger/Ilaria_RVC/blob/main/releases/2.4.5/RELEASE-NOTES.md)
+[Download the 2.4.5 patch](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.4.5/ILARIA_RVC-update-2.4.5.zip?download=true) | [Installation instructions](https://huggingface.co/TheStinger/Ilaria_RVC/blob/main/releases/2.4.5/RELEASE-NOTES.md)
 
 ## Updating from 2.4.0 or 2.4.1
 

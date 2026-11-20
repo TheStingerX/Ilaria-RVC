@@ -285,4 +285,4 @@ Requires Ilaria RVC 2.4.2.
 
 - Added bidirectional .pth and .safetensors conversion in Other. The converter preserves RVC metadata, restores compatible external metadata, keeps the original filename and can move an inference-ready .pth into models. Inference now explains when a file lacks the voice configuration.
 
-The manual patch requires Ilaria RVC 2.4.4 and the safetensors package.
+Update from Ilaria RVC 2.4.4 in **Other → Update Ilaria RVC**. The converter downloads Safetensors on first use if needed.

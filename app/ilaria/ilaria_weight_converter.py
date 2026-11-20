@@ -1,11 +1,48 @@
 """Convert tensor weights on CPU and retain the metadata of RVC exports."""
 
+import importlib
 import json
 from pathlib import Path
 import shutil
-from tempfile import mkdtemp
+import subprocess
+import sys
+from tempfile import mkdtemp, TemporaryDirectory
+from threading import Lock
 
 _METADATA = "ilaria_rvc_checkpoint"
+_dependency_lock = Lock()
+
+
+def _ensure_safetensors(app_root):
+    """Install the optional wheel outside the bundled Python environment."""
+    with _dependency_lock:
+        try:
+            importlib.import_module("safetensors")
+            return
+        except ModuleNotFoundError as error:
+            if error.name != "safetensors":
+                raise
+
+        dependencies = app_root / "assets" / "weight_converter" / "dependencies"
+        if not dependencies.is_dir():
+            dependencies.parent.mkdir(parents=True, exist_ok=True)
+            with TemporaryDirectory(prefix=".safetensors-", dir=dependencies.parent) as temporary:
+                stage = Path(temporary) / "dependencies"
+                result = subprocess.run(
+                    [sys.executable, "-I", "-m", "pip", "--isolated", "install",
+                     "--index-url", "https://pypi.org/simple", "--only-binary=:all:",
+                     "--no-deps", "--no-input", "--disable-pip-version-check",
+                     "--target", str(stage), "safetensors==0.8.0"],
+                    capture_output=True, text=True, errors="replace", timeout=180,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                )
+                if result.returncode:
+                    raise RuntimeError("Could not download Safetensors. Check your internet connection and retry.")
+                stage.rename(dependencies)
+        sys.path.insert(0, str(dependencies))
+        importlib.invalidate_caches()
+        importlib.import_module("safetensors")
+
 
 
 def convert_model_file(upload, output_root):
@@ -19,6 +56,9 @@ def convert_model_file(upload, output_root):
         suffix = source.suffix.lower()
         if suffix not in {".pth", ".safetensors"}:
             raise ValueError("Choose a .pth or .safetensors file.")
+
+        yield "5% | Preparing Safetensors...", None
+        _ensure_safetensors(Path(output_root).resolve().parents[1])
 
         import torch
         from safetensors import safe_open
