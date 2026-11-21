@@ -1,6 +1,7 @@
 """Offline release notes, newest first."""
 
 RELEASE_HISTORY = (
+    ('2.4.7', '- Restored the authorized Legacy Core 1.5 V2 and 1.6 pretrained downloads at 32 kHz.\n- Interrupted updates now preserve changed support files in a recovery backup and restore the previous installation so the update can be retried.'),
     ('2.4.6', '- Added KLM Vocal ContentVec as an optional download for Inference and RVC v2 Training.\n- Added 43 verified KLM G/D pairs to Recommended pretrained models, with sample rates listed. Training compatibility varies by pair.'),
     ('2.4.5', '- Added bidirectional .pth and .safetensors conversion in Other. The converter preserves RVC metadata, restores compatible external metadata, keeps the original filename and can move an inference-ready .pth into models. Inference now explains when a file lacks the voice configuration.'),
     ('2.4.4', '- Removed the six Legacy Core pretrained download options from Lyery after the source files were taken down. Previously downloaded weights remain available for training.'),

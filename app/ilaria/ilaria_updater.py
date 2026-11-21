@@ -34,7 +34,7 @@ import uuid
 from importlib.metadata import PackageNotFoundError, version as package_version
 import zipfile
 
-CURRENT_VERSION = '2.4.6'
+CURRENT_VERSION = '2.4.7'
 MANIFEST_URL = 'https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/version-v2.json'
 LEGACY_MANAGED_FILES = (
     'ILARIA_RVC.py', 'ILARIA_RVC.bat',
@@ -534,11 +534,18 @@ def _rollback(root, journal):
     for name in order:
         destination = _safe_path(root, name)
         checksum = journal['original'][name]
+        if destination.is_file():
+            current = _digest(destination)
+            if current == checksum:
+                continue
+            if current != journal['replacement'][name]:
+                saved = _safe_path(root, '.ilaria-updates/recovered/%s/%s/%s' %
+                                   (transaction, current, name))
+                _atomic_copy(destination, saved)
+                if _digest(saved) != current:
+                    raise UpdaterError('Could not preserve the changed file during recovery: ' + name)
         if checksum is None:
-            if destination.exists():
-                if _digest(destination) != journal['replacement'][name]:
-                    raise UpdaterError('Recovery found an unexpected new file and kept it: ' + name)
-                destination.unlink()
+            destination.unlink(missing_ok=True)
         else:
             _atomic_copy(_safe_path(root, '.ilaria-updates/backups/%s/%s' % (transaction, name)), destination)
             if _digest(destination) != checksum:
@@ -556,9 +563,9 @@ def _recover_locked(root):
         return
     yield '0.0% | Recovering an interrupted update from its backup...'
     _rollback(root, journal)
-    _safe_path(root, '.ilaria-updates/journal.json').unlink(missing_ok=True)
     _clear_matching_last_update(root, journal)
-    yield '100.0% | Previous files restored. The update can be retried.'
+    _clear_transaction(root, journal)
+    yield '100.0% | Previous files restored. Any changed files are in .ilaria-updates/recovered. Check for updates to retry.'
 
 
 def recover_interrupted(root):

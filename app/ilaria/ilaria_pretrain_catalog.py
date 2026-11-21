@@ -146,6 +146,26 @@ CATALOG = tuple(sorted(
 ))
 
 
+LEGACY_CORE_PRETRAINS = (
+    ('Legacy Core 1.5 V2', 'LegacyCore1.5v2', 'HiFi-GAN', 'contentvec'),
+    ('Legacy Core 1.6', 'LegacyCoreOld', 'Not specified', 'Not specified'),
+)
+
+CATALOG = tuple(sorted(
+    (*CATALOG, *(
+        {
+            'name': name, 'repo': 'notiscBalbalEko/PretrainReupload',
+            'g': f'G_{stem}.pth', 'd': f'D_{stem}.pth',
+            'sample_rate': 32000, 'vocoder': vocoder, 'embedder': embedder,
+            'variant': '', 'note': "Authorized reupload of Lyery's pretrained weights.",
+            'label': f'{name} | 32 kHz',
+        }
+        for name, stem, vocoder, embedder in LEGACY_CORE_PRETRAINS
+    )),
+    key=lambda entry: entry['label'].casefold(),
+))
+
+
 def choices():
     return [entry['label'] for entry in CATALOG]
 

@@ -1,4 +1,4 @@
-# Ilaria RVC 2.4.6
+# Ilaria RVC 2.4.7
 
 The full Windows ZIP is for NVIDIA GPUs and includes Python 3.10, PyTorch 2.10, and CUDA 12.8.
 
@@ -25,11 +25,11 @@ Turn off **Automatic training precision** in Training Settings to choose a suppo
 
 BF16 uses mixed precision in the trainer. Feature extraction uses FP32 for BF16 runs, and model exports retain the existing RVC format.
 
-## Updating to 2.4.6
+## Updating to 2.4.7
 
-From Ilaria RVC 2.4.5, open **Other → Update Ilaria RVC → Check for updates**, then choose **Download and restart**. KLM Vocal ContentVec is available under **Other → Download embedders**.
+From Ilaria RVC 2.4.6, open **Other → Update Ilaria RVC → Check for updates**, then choose **Download and restart**. For a fresh Windows installation, use the [full ZIP with the NVIDIA runtime](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.4.7/ILARIA_RVC-2.4.7.zip?download=true).
 
-[Download the 2.4.6 patch](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.4.6/ILARIA_RVC-update-2.4.6.zip?download=true) | [Installation instructions](https://huggingface.co/TheStinger/Ilaria_RVC/blob/main/releases/2.4.6/RELEASE-NOTES.md)
+[Download the 2.4.7 patch](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.4.7/ILARIA_RVC-update-2.4.7.zip?download=true) | [Installation instructions](https://huggingface.co/TheStinger/Ilaria_RVC/blob/main/releases/2.4.7/RELEASE-NOTES.md)
 
 ## Updating from 2.4.0 or 2.4.1
 
