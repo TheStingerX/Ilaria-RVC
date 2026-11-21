@@ -27,7 +27,7 @@ BF16 uses mixed precision in the trainer. Feature extraction uses FP32 for BF16 
 
 ## Updating to 2.4.7
 
-From Ilaria RVC 2.4.6, open **Other → Update Ilaria RVC → Check for updates**, then choose **Download and restart**. For a fresh Windows installation, use the [full ZIP with the NVIDIA runtime](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.4.7/ILARIA_RVC-2.4.7.zip?download=true).
+From Ilaria RVC 2.4.2 through 2.4.6, open **Other → Update Ilaria RVC → Check for updates**, then choose **Download and restart**. For a fresh Windows installation, use the [full ZIP with the NVIDIA runtime](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.4.7/ILARIA_RVC-2.4.7.zip?download=true).
 
 [Download the 2.4.7 patch](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.4.7/ILARIA_RVC-update-2.4.7.zip?download=true) | [Installation instructions](https://huggingface.co/TheStinger/Ilaria_RVC/blob/main/releases/2.4.7/RELEASE-NOTES.md)
 
