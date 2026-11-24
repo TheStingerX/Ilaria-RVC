@@ -236,7 +236,7 @@ def run(
             hps.train.segment_size // hps.data.hop_length,
             **hps.model,
             is_half=precision == "FP16",
-            sr=hps.sample_rate,
+            sr=hps.data.sampling_rate,
         )
     else:
         net_g = RVC_Model_nof0(

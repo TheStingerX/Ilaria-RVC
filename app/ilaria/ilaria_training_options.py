@@ -17,8 +17,8 @@ def validate_options(root, name, rate, pitch, version, vocoder, embedder, silenc
     vocoder = normalize_vocoder(vocoder)
     if vocoder == 'MRF HiFi-GAN' and (version != 'v2' or rate not in ('32k', '40k', '48k') or not pitch):
         raise ValueError('MRF HiFi-GAN requires RVC v2, 32/40/48 kHz, and Pitch Guidance.')
-    if vocoder == 'RefineGAN' and (version != 'v2' or rate != '32k' or not pitch):
-        raise ValueError('RefineGAN requires RVC v2, 32 kHz and Pitch Guidance enabled.')
+    if vocoder == 'RefineGAN' and (version != 'v2' or rate not in ('32k', '40k', '44.1k') or not pitch):
+        raise ValueError('RefineGAN requires RVC v2, 32, 40 or 44.1 kHz and Pitch Guidance enabled.')
     if vocoder != 'HiFi-GAN' and pretrain == AUTO:
         raise ValueError(f'Select a compatible {vocoder} pretrained pair, Custom paths, or None (train from scratch).')
     validate_training_embedder(root, embedder, version)

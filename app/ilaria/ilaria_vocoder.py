@@ -22,7 +22,7 @@ def apply_vocoder(model, vocoder='HiFi-GAN', version='v2', if_f0=1, sample_rate=
     if vocoder == 'HiFi-GAN':
         model.vocoder = vocoder
         return model
-    sample_rate = {'32k': 32000, '40k': 40000, '48k': 48000}.get(sample_rate, sample_rate)
+    sample_rate = {'32k': 32000, '40k': 40000, '44.1k': 44100, '48k': 48000}.get(sample_rate, sample_rate)
     if vocoder == 'MRF HiFi-GAN':
         if version != 'v2' or not if_f0 or int(sample_rate) not in (32000, 40000, 48000):
             raise ValueError('MRF HiFi-GAN requires RVC v2, 32/40/48 kHz, and Pitch Guidance.')
@@ -40,12 +40,13 @@ def apply_vocoder(model, vocoder='HiFi-GAN', version='v2', if_f0=1, sample_rate=
         )
         model.vocoder = vocoder
         return model
-    if version != 'v2' or not if_f0 or int(sample_rate) != 32000:
-        raise ValueError('RefineGAN requires RVC v2, 32 kHz and Pitch Guidance enabled.')
-    if list(model.upsample_rates) != [10, 8, 2, 2] or int(model.gin_channels) != 256:
-        raise ValueError('This RefineGAN port requires the standard v2 32 kHz architecture.')
+    if version != 'v2' or not if_f0 or int(sample_rate) not in (32000, 40000, 44100):
+        raise ValueError('RefineGAN requires RVC v2, 32, 40 or 44.1 kHz and Pitch Guidance enabled.')
+    expected_rates = {32000: [10, 8, 2, 2], 40000: [10, 10, 2, 2], 44100: [7, 7, 3, 3]}
+    if list(model.upsample_rates) != expected_rates[int(sample_rate)] or int(model.gin_channels) != 256:
+        raise ValueError('This RefineGAN port requires the standard v2 architecture for the selected sample rate.')
     from ilaria_refinegan import RefineGANGenerator
-    model.dec = RefineGANGenerator(sample_rate=32000,
+    model.dec = RefineGANGenerator(sample_rate=int(sample_rate),
                                    upsample_rates=list(model.upsample_rates),
                                    downsample_rates=list(model.upsample_rates)[::-1],
                                    num_mels=model.inter_channels,
@@ -54,6 +55,47 @@ def apply_vocoder(model, vocoder='HiFi-GAN', version='v2', if_f0=1, sample_rate=
                                    upsample_initial_channel=512)
     model.vocoder = vocoder
     return model
+
+
+
+def refinegan_44100_config(base):
+    from copy import deepcopy
+
+    config = deepcopy(base)
+    config["data"].update(sampling_rate=44100, hop_length=441)
+    config["train"]["segment_size"] = 441 * 32
+    config["model"].update(upsample_rates=[7, 7, 3, 3], upsample_kernel_sizes=[15, 15, 7, 7])
+    return config
+
+
+def prepare_refinegan_mute(root):
+    """Create the 44.1 kHz mute waveform from the bundled 40 kHz sample."""
+    from pathlib import Path
+    from tempfile import NamedTemporaryFile
+
+    import numpy as np
+    from scipy.io import wavfile
+    from scipy.signal import resample_poly
+
+    folder = Path(root) / "logs" / "mute" / "0_gt_wavs"
+    target = folder / "mute44.1k.wav"
+    if target.is_file():
+        return target
+    rate, audio = wavfile.read(folder / "mute40k.wav")
+    if rate != 40000:
+        raise ValueError("Expected the bundled 40 kHz mute waveform.")
+    result = resample_poly(audio.astype(np.float32), 441, 400)
+    if np.issubdtype(audio.dtype, np.integer):
+        limits = np.iinfo(audio.dtype)
+        result = np.clip(result.round(), limits.min, limits.max)
+    with NamedTemporaryFile(dir=folder, suffix=".wav", delete=False) as handle:
+        temporary = Path(handle.name)
+    try:
+        wavfile.write(temporary, 44100, result.astype(audio.dtype))
+        temporary.replace(target)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return target
 
 
 def weights_for_runtime(weights):

@@ -15,7 +15,7 @@ def control_updates(root, version, vocoder, rate, pitch, embedder, target, cache
     if version == 'v1':
         vocoder, embedder = 'HiFi-GAN', 'contentvec'
     refined = vocoder == 'RefineGAN'
-    rates = ['32k'] if refined else (['40k', '48k'] if version == 'v1' else ['32k', '40k', '48k'])
+    rates = ['32k', '40k', '44.1k'] if refined else (['40k', '48k'] if version == 'v1' else ['32k', '40k', '48k'])
     chosen_rate = rate if rate in rates else rates[0]
     requires_pitch = refined or vocoder == 'MRF HiFi-GAN'
     chosen_pitch = True if requires_pitch else bool(pitch)

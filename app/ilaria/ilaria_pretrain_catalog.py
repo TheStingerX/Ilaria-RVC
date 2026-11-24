@@ -191,8 +191,8 @@ def describe(label):
           '| Vocoder | '+entry['vocoder']+' |','| Embedder | '+entry['embedder']+' |']
     if entry['variant']:rows.append('| Variant | '+entry['variant']+' |')
     rows+=['','[Generator G]('+g+') · [Discriminator D]('+d+') · [Publisher page](https://huggingface.co/'+entry['repo']+')']
-    if entry['vocoder']=='RefineGAN' and entry['sample_rate']!=32000:
-        rows+=['','**Download available; training unsupported here:** this RefineGAN variant is %g kHz. This build trains RefineGAN only at 32 kHz. Do not select 32 kHz to disguise a different-rate pretrained.'%(entry['sample_rate']/1000)]
+    if entry['vocoder']=='RefineGAN' and entry['sample_rate'] in (40000, 44100):
+        rows+=['','**Architecture differs:** this %g kHz pretrained pair can be downloaded, but does not match the RefineGAN decoder in Ilaria RVC. Choose None to train from scratch.'%(entry['sample_rate']/1000)]
     if entry['note']:rows+=['',entry['note']]
     return '\n'.join(rows)
 

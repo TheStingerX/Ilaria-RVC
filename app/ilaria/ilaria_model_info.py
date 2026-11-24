@@ -76,6 +76,8 @@ def _md(value):
 def _rate(value):
     if isinstance(value, str):
         normalized = value.lower().strip()
+        if normalized == '44.1k':
+            return 44100
         if normalized in ('32k', '40k', '48k'):
             return int(normalized[:-1]) * 1000
     if isinstance(value, (int, float)) and not isinstance(value, bool):

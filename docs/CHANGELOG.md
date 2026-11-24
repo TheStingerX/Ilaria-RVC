@@ -301,3 +301,8 @@ Update from Ilaria RVC 2.4.4 in **Other → Update Ilaria RVC**. The converter d
 
 - Added Lyery's Legacy Core 1.5 pretrained pairs at 32 and 40 kHz.
 - All four Legacy Core options now list HiFi-GAN and ContentVec.
+
+## 2.5.0
+
+- Extended RefineGAN training and inference to 40 and 44.1 kHz for RVC v2 with Pitch Guidance. The existing 32 kHz option remains available.
+- Generate the 44.1 kHz mute waveform automatically. Use None to train from scratch when a pretrained pair uses a different architecture, including the tested KLM 5 40 kHz and VCTK 44.1 kHz pairs.
