@@ -147,20 +147,22 @@ CATALOG = tuple(sorted(
 
 
 LEGACY_CORE_PRETRAINS = (
-    ('Legacy Core 1.5 V2', 'LegacyCore1.5v2', 'HiFi-GAN', 'contentvec'),
-    ('Legacy Core 1.6', 'LegacyCoreOld', 'Not specified', 'Not specified'),
+    ('Legacy Core 1.5', 'sxndypz/legacy-core-1.5', '15', 32, 'HiFi-GAN', 'contentvec'),
+    ('Legacy Core 1.5', 'sxndypz/legacy-core-1.5', '40k', 40, 'HiFi-GAN', 'contentvec'),
+    ('Legacy Core 1.5 V2', 'notiscBalbalEko/PretrainReupload', 'LegacyCore1.5v2', 32, 'HiFi-GAN', 'contentvec'),
+    ('Legacy Core 1.6', 'notiscBalbalEko/PretrainReupload', 'LegacyCoreOld', 32, 'HiFi-GAN', 'contentvec'),
 )
 
 CATALOG = tuple(sorted(
     (*CATALOG, *(
         {
-            'name': name, 'repo': 'notiscBalbalEko/PretrainReupload',
+            'name': name, 'repo': repo,
             'g': f'G_{stem}.pth', 'd': f'D_{stem}.pth',
-            'sample_rate': 32000, 'vocoder': vocoder, 'embedder': embedder,
-            'variant': '', 'note': "Authorized reupload of Lyery's pretrained weights.",
-            'label': f'{name} | 32 kHz',
+            'sample_rate': rate * 1000, 'vocoder': vocoder, 'embedder': embedder,
+            'variant': '', 'note': "Reupload of Lyery's pretrained weights.",
+            'label': f'{name} | {rate} kHz',
         }
-        for name, stem, vocoder, embedder in LEGACY_CORE_PRETRAINS
+        for name, repo, stem, rate, vocoder, embedder in LEGACY_CORE_PRETRAINS
     )),
     key=lambda entry: entry['label'].casefold(),
 ))

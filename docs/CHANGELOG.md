@@ -296,3 +296,8 @@ Update from Ilaria RVC 2.4.4 in **Other → Update Ilaria RVC**. The converter d
 
 - Restored the authorized Legacy Core 1.5 V2 and 1.6 pretrained downloads at 32 kHz.
 - Interrupted updates now preserve changed support files in a recovery backup and restore the previous installation so the update can be retried.
+
+## 2.4.8
+
+- Added Lyery's Legacy Core 1.5 pretrained pairs at 32 and 40 kHz.
+- All four Legacy Core options now list HiFi-GAN and ContentVec.
