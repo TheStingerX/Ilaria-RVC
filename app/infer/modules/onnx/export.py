@@ -5,10 +5,12 @@ from infer.lib.infer_pack.models_onnx import SynthesizerTrnMsNSFsidM
 
 def export_onnx(ModelPath, ExportedPath):
     cpt = torch.load(ModelPath, map_location="cpu", weights_only=True)
-    from ilaria.ilaria_vocoder import inferred_vocoder
+    from ilaria.ilaria_vocoder import checkpoint_vocoder, weights_for_runtime
 
-    if cpt.get("vocoder") == "MRF HiFi-GAN" or inferred_vocoder(cpt["weight"]) == "MRF HiFi-GAN":
-        raise ValueError("ONNX export does not support MRF HiFi-GAN. Use the .pth in Ilaria RVC Inference.")
+    if not isinstance(cpt, dict) or not isinstance(cpt.get("config"), list) or len(cpt["config"]) != 18 or not isinstance(cpt.get("weight"), dict):
+        raise ValueError("Choose an inference-ready RVC .pth with its voice configuration and weights.")
+    if checkpoint_vocoder(cpt) != "HiFi-GAN" or cpt.get("f0", 1) not in (1, "1"):
+        raise ValueError("ONNX export supports HiFi-GAN RVC models with Pitch Guidance enabled.")
     cpt["config"][-3] = cpt["weight"]["emb_g.weight"].shape[0]
     vec_channels = 256 if cpt.get("version", "v1") == "v1" else 768
 
@@ -24,7 +26,13 @@ def export_onnx(ModelPath, ExportedPath):
     net_g = SynthesizerTrnMsNSFsidM(
         *cpt["config"], is_half=False, version=cpt.get("version", "v1")
     )  # fp32导出（C++要支持fp16必须手动将内存重新排列所以暂时不用fp16）
-    net_g.load_state_dict(cpt["weight"], strict=False)
+    from ilaria_onnx_compat import prepare_onnx_trace
+
+    prepare_onnx_trace(net_g)
+    net_g.eval()
+    del net_g.enc_q
+    weights = {key: value for key, value in cpt["weight"].items() if not key.startswith("enc_q.")}
+    net_g.load_state_dict(weights_for_runtime(weights), strict=True)
     input_names = ["phone", "phone_lengths", "pitch", "pitchf", "ds", "rnd"]
     output_names = [
         "audio",
@@ -48,7 +56,8 @@ def export_onnx(ModelPath, ExportedPath):
             "rnd": [2],
         },
         do_constant_folding=False,
-        opset_version=13,
+        opset_version=17,
+        dynamo=False,
         verbose=False,
         input_names=input_names,
         output_names=output_names,

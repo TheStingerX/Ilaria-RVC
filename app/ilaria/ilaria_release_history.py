@@ -1,6 +1,7 @@
 """Offline release notes, newest first."""
 
 RELEASE_HISTORY = (
+    ('2.5.1', '- Added ONNX export for pitch-guided RVC HiFi-GAN models and exact .pth restoration from ONNX files created by Ilaria RVC.\n- Added an installed-model selector to Convert model weights.\n- Added 49 entries from the pretrained documentation, with download-only and compatibility notes where applicable.'),
     ('2.5.0', '- Extended RefineGAN training and inference to 40 and 44.1 kHz for RVC v2 with Pitch Guidance. The existing 32 kHz option remains available.\n- Generate the 44.1 kHz mute waveform automatically. Use None to train from scratch when a pretrained pair uses a different architecture, including the tested KLM 5 40 kHz and VCTK 44.1 kHz pairs.'),
     ('2.4.8', "- Added Lyery's Legacy Core 1.5 pretrained pairs at 32 and 40 kHz.\n- All four Legacy Core options now list HiFi-GAN and ContentVec."),
     ('2.4.7', '- Restored the authorized Legacy Core 1.5 V2 and 1.6 pretrained downloads at 32 kHz.\n- Interrupted updates now preserve changed support files in a recovery backup and restore the previous installation so the update can be retried.'),

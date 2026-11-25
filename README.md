@@ -1,4 +1,4 @@
-# Ilaria RVC 2.5.0
+# Ilaria RVC 2.5.1
 
 The full Windows ZIP is for NVIDIA GPUs and includes Python 3.10, PyTorch 2.10, and CUDA 12.8.
 
@@ -25,11 +25,11 @@ Turn off **Automatic training precision** in Training Settings to choose a suppo
 
 BF16 uses mixed precision in the trainer. Feature extraction uses FP32 for BF16 runs, and model exports retain the existing RVC format.
 
-## Updating to 2.5.0
+## Updating to 2.5.1
 
-From Ilaria RVC 2.4.2 through 2.4.8, open **Other → Update Ilaria RVC → Check for updates**, then choose **Download and restart**. For a fresh Windows installation, use the [full ZIP with the NVIDIA runtime](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.4.7/ILARIA_RVC-2.4.7.zip?download=true).
+From Ilaria RVC 2.4.2 through 2.5.0, open **Other → Update Ilaria RVC → Check for updates**, then choose **Download and restart**. For a fresh Windows installation, use the [full ZIP with the NVIDIA runtime](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.4.7/ILARIA_RVC-2.4.7.zip?download=true).
 
-[Download the 2.5.0 patch](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.5.0/ILARIA_RVC-update-2.5.0.zip?download=true) | [Installation instructions](https://huggingface.co/TheStinger/Ilaria_RVC/blob/main/releases/2.5.0/RELEASE-NOTES.md)
+[Download the 2.5.1 patch](https://huggingface.co/TheStinger/Ilaria_RVC/resolve/main/releases/2.5.1/ILARIA_RVC-update-2.5.1.zip?download=true) | [Installation instructions](https://huggingface.co/TheStinger/Ilaria_RVC/blob/main/releases/2.5.1/RELEASE-NOTES.md)
 
 ## Updating from 2.4.0 or 2.4.1
 

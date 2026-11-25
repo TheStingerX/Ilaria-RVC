@@ -1252,10 +1252,28 @@ def export_voice_model(model, index):
     yield from export_model(model, index, now_dir)
 
 
-def convert_model_weights(upload):
+def refresh_weight_models(selected=None):
+    choices = sorted(voice_files(weight_root), key=str.casefold)
+    return gr.update(choices=choices, value=selected if selected in choices else None)
+
+
+def convert_model_weights(upload, output_format="Auto", installed_model=None):
+    from types import SimpleNamespace
+
     from ilaria_weight_converter import convert_model_file
 
-    for status, result in convert_model_file(upload, pathlib.Path(now_dir) / "TEMP" / "weight-conversions"):
+    if installed_model:
+        if upload:
+            yield "Clear the uploaded file or the installed model selection before converting.", None, None
+            return
+        try:
+            source = voice_path(weight_root, installed_model)
+        except (OSError, ValueError) as error:
+            yield str(error), None, None
+            return
+        upload = SimpleNamespace(name=str(source), orig_name=source.name)
+
+    for status, result in convert_model_file(upload, pathlib.Path(now_dir) / "TEMP" / "weight-conversions", output_format):
         yield status, result, result
 
 
@@ -3976,18 +3994,27 @@ with gr.Blocks(title="♡  ILARIA RVC ♡", css=ILARIARVC_CSS, analytics_enabled
 
             with gr.Accordion("Convert model weights", open=False, elem_id="weight-converter"):
                 gr.Markdown(
-                    "Drop a **.pth** or **.safetensors** file and click **Convert weights**. "
-                    "Download the result below. An RVC voice keeps its settings when converted back by this tool. "
-                    "A tensor-only file stays tensor-only and may need model settings to work in Inference.",
+                    "Select an installed model or drop a **.pth**, **.safetensors** or **.onnx** file, "
+                    "then choose the output format. "
+                    "ONNX export supports HiFi-GAN voices with Pitch Guidance. It embeds the original .pth "
+                    "for exact restoration and increases the download size. Imported ONNX files need "
+                    "that embedded checkpoint to convert back.",
                     elem_id="weight-converter-help",
                 )
-                weights_input = gr.File(label="Choose or drop a .pth or .safetensors file")
+                with gr.Row():
+                    weights_model = gr.Dropdown(sorted(voice_files(weight_root), key=str.casefold),
+                                                label="Installed voice model", value=None, interactive=True)
+                    refresh_weights = gr.Button("Refresh model list", variant="secondary")
+                refresh_weights.click(refresh_weight_models, [weights_model], [weights_model],
+                                      queue=False, show_progress=False)
+                weights_input = gr.File(label="Choose or drop a .pth, .safetensors or .onnx file")
+                weights_format = gr.Radio(["Auto", "PTH", "Safetensors", "ONNX"], value="Auto", label="Output format")
                 weights_button = gr.Button("Convert weights", variant="primary")
                 weights_log = gr.Textbox(label="Conversion Log", interactive=False)
                 weights_output = gr.File(label="Download converted weights", interactive=False)
                 converted_path = gr.State()
                 move_weights = gr.Button("Move .pth to models", variant="primary")
-                weights_button.click(update_operation_gate.track(convert_model_weights, "model weight conversion"), [weights_input], [weights_log, weights_output, converted_path],
+                weights_button.click(update_operation_gate.track(convert_model_weights, "model weight conversion"), [weights_input, weights_format, weights_model], [weights_log, weights_output, converted_path],
                                      show_progress=False, api_name="convert_model_weights")
                 move_weights.click(update_operation_gate.track(install_converted_model, "converted model installation"),
                                    [converted_path], [weights_log], show_progress=False)

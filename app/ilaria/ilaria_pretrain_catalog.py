@@ -168,6 +168,73 @@ CATALOG = tuple(sorted(
 ))
 
 
+DOCS_PRETRAIN_FILES = (
+    ('Stock RVC v1 (F0)', 'lj1995/VoiceConversionWebUI', 'pretrained/f0G32k.pth', 'pretrained/f0D32k.pth', 32, 'HiFi-GAN', 'HuBERT Base (256)', 'Requires RVC v1 training support.'),
+    ('Stock RVC v1 (No F0)', 'lj1995/VoiceConversionWebUI', 'pretrained/G32k.pth', 'pretrained/D32k.pth', 32, 'HiFi-GAN', 'HuBERT Base (256)', 'Requires RVC v1 training support.'),
+    ('Stock RVC v1 (F0)', 'lj1995/VoiceConversionWebUI', 'pretrained/f0G40k.pth', 'pretrained/f0D40k.pth', 40, 'HiFi-GAN', 'HuBERT Base (256)', 'Requires RVC v1 training support.'),
+    ('Stock RVC v1 (No F0)', 'lj1995/VoiceConversionWebUI', 'pretrained/G40k.pth', 'pretrained/D40k.pth', 40, 'HiFi-GAN', 'HuBERT Base (256)', 'Requires RVC v1 training support.'),
+    ('Stock RVC v1 (F0)', 'lj1995/VoiceConversionWebUI', 'pretrained/f0G48k.pth', 'pretrained/f0D48k.pth', 48, 'HiFi-GAN', 'HuBERT Base (256)', 'Requires RVC v1 training support.'),
+    ('Stock RVC v1 (No F0)', 'lj1995/VoiceConversionWebUI', 'pretrained/G48k.pth', 'pretrained/D48k.pth', 48, 'HiFi-GAN', 'HuBERT Base (256)', 'Requires RVC v1 training support.'),
+    ('Stock RVC v2 (F0)', 'lj1995/VoiceConversionWebUI', 'pretrained_v2/f0G32k.pth', 'pretrained_v2/f0D32k.pth', 32, 'HiFi-GAN', 'HuBERT Base (768)', ''),
+    ('Stock RVC v2 (No F0)', 'lj1995/VoiceConversionWebUI', 'pretrained_v2/G32k.pth', 'pretrained_v2/D32k.pth', 32, 'HiFi-GAN', 'HuBERT Base (768)', ''),
+    ('Stock RVC v2 (F0)', 'lj1995/VoiceConversionWebUI', 'pretrained_v2/f0G40k.pth', 'pretrained_v2/f0D40k.pth', 40, 'HiFi-GAN', 'HuBERT Base (768)', ''),
+    ('Stock RVC v2 (No F0)', 'lj1995/VoiceConversionWebUI', 'pretrained_v2/G40k.pth', 'pretrained_v2/D40k.pth', 40, 'HiFi-GAN', 'HuBERT Base (768)', ''),
+    ('Stock RVC v2 (F0)', 'lj1995/VoiceConversionWebUI', 'pretrained_v2/f0G48k.pth', 'pretrained_v2/f0D48k.pth', 48, 'HiFi-GAN', 'HuBERT Base (768)', ''),
+    ('Stock RVC v2 (No F0)', 'lj1995/VoiceConversionWebUI', 'pretrained_v2/G48k.pth', 'pretrained_v2/D48k.pth', 48, 'HiFi-GAN', 'HuBERT Base (768)', ''),
+    ('Aurora v2', 'Politrees/RVC_resources', 'pretrained/v2/48k/Aurora/G_Aurora_v2.pth', 'pretrained/v2/48k/Aurora/D_Aurora_v2.pth', 48, 'Not specified', 'Not specified', ''),
+    ('DMR v0.5', 'Politrees/RVC_resources', 'pretrained/v2/32k/DMR/G_dmrV0-5.pth', 'pretrained/v2/32k/DMR/D_dmrV0-5.pth', 32, 'Not specified', 'Not specified', ''),
+    ('DMR v0.8', 'Politrees/RVC_resources', 'pretrained/v2/32k/DMR/G_DMR_V0-8.pth', 'pretrained/v2/32k/DMR/D_DMR_V0-8.pth', 32, 'Not specified', 'Not specified', ''),
+    ('DMR v1', 'Politrees/RVC_resources', 'pretrained/v2/32k/DMR/G_DMR-V1.pth', 'pretrained/v2/32k/DMR/D_DMR-V1.pth', 32, 'Not specified', 'Not specified', ''),
+    ('SingerPreTrain v1', 'Politrees/RVC_resources', 'pretrained/v2/32k/Singer/f0G_SingerPreTrain.pth', 'pretrained/v2/32k/Singer/f0D_SingerPreTrain.pth', 32, 'Not specified', 'Not specified', ''),
+    ('KLM 4.2 T1', 'Politrees/RVC_resources', 'pretrained/v2/32k/KLM/G_KLM42_T1_32k.pth', 'pretrained/v2/32k/KLM/D_KLM42_T1_32k.pth', 32, 'Not specified', 'Not specified', ''),
+    ('KLM 4.2 T1', 'Politrees/RVC_resources', 'pretrained/v2/40k/KLM/G_KLM42_fp32_T1_40k.pth', 'pretrained/v2/40k/KLM/D_KLM42_fp32_T1_40k.pth', 40, 'Not specified', 'Not specified', ''),
+    ('KLM 4.2 T2', 'Politrees/RVC_resources', 'pretrained/v2/40k/KLM/G_KLM42_fp32_T2_40k.pth', 'pretrained/v2/40k/KLM/D_KLM42_fp32_T2_40k.pth', 40, 'Not specified', 'Not specified', ''),
+    ('KLM 4.2 T3', 'Politrees/RVC_resources', 'pretrained/v2/40k/KLM/G_KLM42_fp32_T3_40k.pth', 'pretrained/v2/40k/KLM/D_KLM42_fp32_T3_40k.pth', 40, 'Not specified', 'Not specified', ''),
+    ('KLM 4.2 T4', 'Politrees/RVC_resources', 'pretrained/v2/40k/KLM/G_KLM42_T4_40k.pth', 'pretrained/v2/40k/KLM/D_KLM42_T4_40k.pth', 40, 'Not specified', 'Not specified', ''),
+    ('Ov2Super F0', 'Politrees/RVC_resources', 'pretrained/v2/40k/Ov2/f0Ov2Super40kG.pth', 'pretrained/v2/40k/Ov2/f0Ov2Super40kD.pth', 40, 'HiFi-GAN', 'Not specified', ''),
+    ('Nanashi v1 original', 'shiromiya/nanashi-pretrain', 'v1/G_nanashi_v1.pth', 'v1/D_nanashi_v1.pth', 32, 'Not specified', 'Not specified', ''),
+    ('Nanashi v1.5', 'shiromiya/nanashi-pretrain', 'v1.5/G_nanashi_v1_5.pth', 'v1.5/D_nanashi_v1_5.pth', 32, 'Not specified', 'Not specified', ''),
+    ('Nanashi v1.5 Rigel', 'shiromiya/nanashi-pretrain', 'v1.5_Rigel_Version/G_Rigel_Portuguese_50e.pth', 'v1.5_Rigel_Version/D_Rigel_Portuguese_50e.pth', 32, 'Not specified', 'Not specified', ''),
+    ('Nanashi Anime Resized', 'shiromiya/nanashi-pretrain', 'v1_anime/resized/G_nanashi_anime_resized.pth', 'v1_anime/resized/D_nanashi_anime_resized.pth', 32, 'Not specified', 'Not specified', ''),
+    ('Rigel Base', 'MUSTAR/Rigel-rvc-base-pretrained-model', 'Rigel_40k_Base_and_FineTuned/Base-model_40k/Alpha/G_RIGEL_base_40k_371406.pth', 'Rigel_40k_Base_and_FineTuned/Base-model_40k/Alpha/D_RIGEL_base_40k_371406.pth', 40, 'HiFi-GAN', 'Not specified', ''),
+    ('Rigel Fine-tuned', 'MUSTAR/Rigel-rvc-base-pretrained-model', 'Rigel_40k_Base_and_FineTuned/FineTuned-model_40k/Alpha/G_RigelFT_40k_9801520.pth', 'Rigel_40k_Base_and_FineTuned/FineTuned-model_40k/Alpha/D_RigelFT_40k_9801520.pth', 40, 'HiFi-GAN', 'Not specified', ''),
+    ('Sench Pretrain', 'Shashashasha/Sench_Pretrain_48k_RVC', 'G_2333333.pth', 'D_2333333.pth', 48, 'Not specified', 'Not specified', ''),
+    ('Snowie v3.1 Japanese HuBERT', 'MUSTAR/Snowie_V3.1_pretrain_on_JPhubert', 'G_SnowieV3.1_JP_hubert.pth', 'D_SnowieV3.1_JP_hubert.pth', None, 'Not specified', 'Japanese HuBERT', ''),
+    ('Snowie RuPretrain (No F0)', 'MUSTAR/Snowie_RuPretrain_noP_40k', 'G_Snow_RuPretrain_noP.pth', 'D_Snow_RuPretrain_noP.pth', 40, 'Not specified', 'Not specified', 'Requires Pitch Guidance off.'),
+    ('DeepFake Audio Rangers', 'DeepFake-Audio-Rangers/rvc_pretrain', 'G_45780.pth', 'D_45780.pth', None, 'Not specified', 'Not specified', ''),
+    ('Applio RefineGAN (DMS)', 'DanielMarius/dms-applio-refinegan-pretrained', 'f0G24k.pth', 'f0D24k.pth', 24, 'RefineGAN', 'Not specified', 'Download only: 24 kHz training is unavailable.'),
+    ('Applio RefineGAN (DMS)', 'DanielMarius/dms-applio-refinegan-pretrained', 'f0G32k.pth', 'f0D32k.pth', 32, 'RefineGAN', 'Not specified', 'Training compatibility has not been verified.'),
+    ('RingFormer v1', 'its5Q/rvc-ringformer-pretrain', 'final/G_its5Q.pth', 'final/D_its5Q.pth', 40, 'RingFormer', 'SPIN v2', 'Archive reference. RingFormer training is unavailable in this build.'),
+    ('RingFormer v2 (failed)', 'its5Q/rvc-ringformer-v2-pretrain', 'failed/G_481376.pth', 'failed/D_481376.pth', 40, 'RingFormer v2', 'SPIN v2', 'Archive reference. RingFormer training is unavailable in this build.'),
+    ('Convbased HiFi-GAN (contentvec)', 'PluginsKers/Convbased-Studio', 'contentvec/HiFiGAN/476sid/f0G48k.pth', 'contentvec/HiFiGAN/476sid/f0D48k.pth', 48, 'HiFi-GAN', 'contentvec', 'Training compatibility has not been verified.'),
+    ('Convbased SiFi-GAN (contentvec)', 'PluginsKers/Convbased-Studio', 'contentvec/SiFiGAN/f0G48k.pth', 'contentvec/SiFiGAN/f0D48k.pth', 48, 'SiFi-GAN', 'contentvec', 'Download reference. This vocoder is unavailable in Ilaria RVC.'),
+    ('Convbased BigVGAN (contentvec)', 'PluginsKers/Convbased-Studio', 'contentvec/BigVGAN/f0G40k.pth', 'contentvec/BigVGAN/f0D40k.pth', 40, 'BigVGAN', 'contentvec', 'Download reference. This vocoder is unavailable in Ilaria RVC.'),
+    ('Convbased HiFi-GAN (spin)', 'PluginsKers/Convbased-Studio', 'spin/HiFiGAN/f0G48k.pth', 'spin/HiFiGAN/f0D48k.pth', 48, 'HiFi-GAN', 'spin', 'Training compatibility has not been verified.'),
+    ('Convbased SiFi-GAN (spin)', 'PluginsKers/Convbased-Studio', 'spin/SiFiGAN/f0G48k.pth', 'spin/SiFiGAN/f0D48k.pth', 48, 'SiFi-GAN', 'spin', 'Download reference. This vocoder is unavailable in Ilaria RVC.'),
+    ('Convbased BigVGAN (spin-v2)', 'PluginsKers/Convbased-Studio', 'spin-v2/BigVGAN/f0G40k.pth', 'spin-v2/BigVGAN/f0D40k.pth', 40, 'BigVGAN', 'spin-v2', 'Download reference. This vocoder is unavailable in Ilaria RVC.'),
+    ('Convbased HiFi-GAN (chinese-hubert-base)', 'PluginsKers/Convbased-Studio', 'chinese-hubert-base/HiFiGAN/f0G48k.pth', 'chinese-hubert-base/HiFiGAN/f0D48k.pth', 48, 'HiFi-GAN', 'chinese-hubert-base', 'Training compatibility has not been verified.'),
+    ('7subpretrain', 'makiligon/rvc-sub-pretrain-moment', '7subpretrain40k.zip', '', 40, 'Not specified', 'Not specified', 'Experimental archive. The installer checks for a complete G/D pair before installing.'),
+    ('Genshin EN Pretrain', 'makiligon/rvc-sub-pretrain-moment', 'GenshinENPretrain32K.zip', '', 32, 'Not specified', 'Not specified', 'Experimental archive. The installer checks for a complete G/D pair before installing.'),
+    ('Genshin EN Pretrain', 'makiligon/rvc-sub-pretrain-moment', 'GenshinENPretrain40k.zip', '', 40, 'Not specified', 'Not specified', 'Experimental archive. The installer checks for a complete G/D pair before installing.'),
+    ('SingingPretrain', 'makiligon/rvc-sub-pretrain-moment', 'SingingPretrain.zip', '', None, 'Not specified', 'Not specified', 'Experimental archive. The installer checks for a complete G/D pair before installing.'),
+    ('RVC v2 Pretrain Voice', 'Coolwowsocoolwow/RVC_V2_Pretrain_Voice', 'RVC_V2_Pretrain_Voice.zip', '', None, 'Not specified', 'Not specified', 'Experimental archive. The installer checks for a complete G/D pair before installing.'),
+)
+
+
+def _docs_pretrain_entries():
+    for name, repo, generator, discriminator, rate, vocoder, embedder, note in DOCS_PRETRAIN_FILES:
+        rate_label = f'{rate} kHz' if rate is not None else 'Sample rate unconfirmed'
+        yield {
+            'name': name, 'repo': repo, 'g': generator, 'd': discriminator,
+            'sample_rate': rate * 1000 if rate is not None else None,
+            'vocoder': vocoder, 'embedder': embedder, 'variant': '', 'note': note,
+            'label': f'{name} | {rate_label}',
+        }
+
+
+CATALOG = tuple(sorted((*CATALOG, *_docs_pretrain_entries()), key=lambda entry: entry['label'].casefold()))
+
+
 def choices():
     return [entry['label'] for entry in CATALOG]
 
@@ -178,19 +245,23 @@ def entry_for(label):
 
 def urls(entry):
     prefix='https://huggingface.co/'+entry['repo']+'/resolve/main/'
-    return tuple(prefix+quote(entry[key],safe='/')+'?download=true' for key in ('g','d'))
+    return tuple(prefix+quote(entry[key],safe='/')+'?download=true' for key in ('g','d') if entry[key])
 
 
 def describe(label):
     entry=entry_for(label)
     if entry is None:return 'Choose a recommended pretrained to see its sample rate and download files.'
-    g,d=urls(entry)
+    links = urls(entry)
     sample_rate = '%g kHz' % (entry['sample_rate'] / 1000) if entry['sample_rate'] else 'Not specified'
     rows=['| Setting | Value |','| --- | --- |','| Pretrained | '+entry['name']+' |',
           '| Sample rate | '+sample_rate+' |',
           '| Vocoder | '+entry['vocoder']+' |','| Embedder | '+entry['embedder']+' |']
     if entry['variant']:rows.append('| Variant | '+entry['variant']+' |')
-    rows+=['','[Generator G]('+g+') · [Discriminator D]('+d+') · [Publisher page](https://huggingface.co/'+entry['repo']+')']
+    downloads = (
+        f'[Generator G]({links[0]}) · [Discriminator D]({links[1]})'
+        if entry['d'] else f'[Pretrained ZIP]({links[0]})'
+    )
+    rows += ['', downloads + ' · [Publisher page](https://huggingface.co/' + entry['repo'] + ')']
     if entry['vocoder']=='RefineGAN' and entry['sample_rate'] in (40000, 44100):
         rows+=['','**Architecture differs:** this %g kHz pretrained pair can be downloaded, but does not match the RefineGAN decoder in Ilaria RVC. Choose None to train from scratch.'%(entry['sample_rate']/1000)]
     if entry['note']:rows+=['',entry['note']]
@@ -203,6 +274,7 @@ def download(label,root):
     if entry is None:
         yield '0.0% | Select a recommended pretrained first.'
         return
-    yield f"0.0% | Selected {entry['label']}. Downloading both G and D..."
-    g,d=urls(entry)
-    yield from download_pretrained(g,root,d)
+    kind = 'both G and D' if entry['d'] else 'the pretrained ZIP'
+    yield f"0.0% | Selected {entry['label']}. Downloading {kind}..."
+    source, *discriminator = urls(entry)
+    yield from download_pretrained(source, root, discriminator[0] if discriminator else '')

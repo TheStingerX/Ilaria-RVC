@@ -10,6 +10,8 @@ from tempfile import mkdtemp, TemporaryDirectory
 from threading import Lock
 
 _METADATA = "ilaria_rvc_checkpoint"
+_ONNX_CHECKPOINT = "ilaria_rvc.original_pth"
+_MAX_EMBEDDED_BYTES = 512 * 1024**2
 _dependency_lock = Lock()
 
 
@@ -45,17 +47,66 @@ def _ensure_safetensors(app_root):
 
 
 
-def convert_model_file(upload, output_root):
+def _convert_onnx(source, target):
+    import onnx
+    import torch
+
+    if target.suffix == ".onnx":
+        if source.stat().st_size > _MAX_EMBEDDED_BYTES:
+            raise ValueError("Choose an RVC .pth smaller than 512 MiB.")
+        from infer.modules.onnx.export import export_onnx
+
+        export_onnx(str(source), str(target))
+        graph = onnx.load(str(target), load_external_data=False)
+        payload = graph.graph.initializer.add()
+        payload.name = _ONNX_CHECKPOINT
+        payload.data_type = onnx.TensorProto.UINT8
+        payload.raw_data = source.read_bytes()
+        payload.dims.append(len(payload.raw_data))
+        onnx.checker.check_model(graph)
+        onnx.save(graph, str(target))
+    else:
+        graph = onnx.load(str(source), load_external_data=False)
+        matches = [tensor for tensor in graph.graph.initializer if tensor.name == _ONNX_CHECKPOINT]
+        if len(matches) != 1:
+            raise ValueError("This ONNX has no original RVC checkpoint. Use an ONNX created by this converter.")
+        payload = matches[0]
+        if (payload.data_location == onnx.TensorProto.EXTERNAL or payload.external_data
+                or payload.data_type != onnx.TensorProto.UINT8 or list(payload.dims) != [len(payload.raw_data)]
+                or not 0 < len(payload.raw_data) <= _MAX_EMBEDDED_BYTES):
+            raise ValueError("Invalid embedded RVC checkpoint.")
+        target.write_bytes(payload.raw_data)
+        checkpoint = torch.load(target, map_location="cpu", weights_only=True)
+        if not isinstance(checkpoint, dict) or not isinstance(checkpoint.get("config"), list) or not isinstance(checkpoint.get("weight"), dict):
+            raise ValueError("The embedded file is missing the RVC configuration or weights.")
+
+
+def convert_model_file(upload, output_root, output_format="Auto"):
     """Yield status and the downloadable file after successful conversion."""
     output_dir = None
     try:
         if not upload:
-            raise ValueError("Drop a .pth or .safetensors file first.")
+            raise ValueError("Drop a .pth, .safetensors or .onnx file first.")
         source = Path(upload.name)
         original_name = Path(str(getattr(upload, "orig_name", None) or source.name).replace("\\", "/")).name
         suffix = source.suffix.lower()
-        if suffix not in {".pth", ".safetensors"}:
-            raise ValueError("Choose a .pth or .safetensors file.")
+        if suffix not in {".pth", ".safetensors", ".onnx"}:
+            raise ValueError("Choose a .pth, .safetensors or .onnx file.")
+        target_suffix = (".safetensors" if suffix == ".pth" else ".pth") if output_format == "Auto" else "." + output_format.lower()
+        if {suffix, target_suffix} == {".pth", ".onnx"}:
+            import torch
+            if tuple(map(int, torch.__version__.split("+")[0].split(".")[:2])) < (2, 6):
+                raise ValueError("PyTorch 2.6 or newer is required for ONNX conversion.")
+            output_root = Path(output_root)
+            output_root.mkdir(parents=True, exist_ok=True)
+            output_dir = Path(mkdtemp(prefix="converted-", dir=output_root))
+            target = output_dir / (Path(original_name).stem + target_suffix)
+            yield "10% | Converting ONNX on CPU...", None
+            _convert_onnx(source, target)
+            yield f"100% | Ready to download: {target.name}", str(target)
+            return
+        if {suffix, target_suffix} != {".pth", ".safetensors"}:
+            raise ValueError("Choose an output format supported for this input. ONNX converts to .pth.")
 
         yield "5% | Preparing Safetensors...", None
         _ensure_safetensors(Path(output_root).resolve().parents[1])
@@ -131,8 +182,10 @@ def convert_model_file(upload, output_root):
                                               and isinstance(checkpoint.get("weight"), dict)):
             status += " | Tensor weights only. This file lacks the voice configuration required for RVC Inference."
         yield status, str(target)
-    except ImportError:
-        yield "Conversion failed. Install the safetensors dependency in the Ilaria RVC runtime.", None
+    except ImportError as error:
+        if output_dir is not None:
+            shutil.rmtree(output_dir, ignore_errors=True)
+        yield f"Conversion failed. Missing runtime dependency: {error.name or error}.", None
     except Exception as error:
         if output_dir is not None:
             shutil.rmtree(output_dir, ignore_errors=True)

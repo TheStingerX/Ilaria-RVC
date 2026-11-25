@@ -306,3 +306,9 @@ Update from Ilaria RVC 2.4.4 in **Other → Update Ilaria RVC**. The converter d
 
 - Extended RefineGAN training and inference to 40 and 44.1 kHz for RVC v2 with Pitch Guidance. The existing 32 kHz option remains available.
 - Generate the 44.1 kHz mute waveform automatically. Use None to train from scratch when a pretrained pair uses a different architecture, including the tested KLM 5 40 kHz and VCTK 44.1 kHz pairs.
+
+## 2.5.1
+
+- Added ONNX export for pitch-guided RVC HiFi-GAN models and exact .pth restoration from ONNX files created by Ilaria RVC.
+- Added an installed-model selector to Convert model weights.
+- Added 49 entries from the pretrained documentation, with download-only and compatibility notes where applicable.
